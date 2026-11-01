@@ -163,6 +163,7 @@ app.use('/api/', globalApiRateLimiter);
 app.use('/api/admin', adminRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/customer', authRouter);
+app.use('/api/notifications', authRouter);
 app.use('/api/vendors', vendorsRouter);
 app.use('/api/delivery-partners', deliveryRouter);
 app.use('/api/orders', ordersRouter);

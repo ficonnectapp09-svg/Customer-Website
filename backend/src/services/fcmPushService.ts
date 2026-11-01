@@ -51,6 +51,8 @@ class FcmPushService {
         { userId: vidStr },
         { vendorId: vidStr },
         { targetId: vidStr },
+        { vendorIds: vidStr },
+        { businessIds: vidStr },
       ];
 
       if (ObjectId.isValid(vidStr)) {
@@ -133,6 +135,7 @@ class FcmPushService {
           body: payload.body,
           sound: 'vendor_alert',
           channel_id: 'vendor_order_alerts_v2',
+          android_channel_id: 'vendor_order_alerts_v2',
           click_action: 'OPEN_NOTIFICATION',
         },
         data: {

@@ -140,6 +140,7 @@ app.use('/api/', middleware_1.globalApiRateLimiter);
 app.use('/api/admin', admin_1.default);
 app.use('/api/auth', auth_1.default);
 app.use('/api/customer', auth_1.default);
+app.use('/api/notifications', auth_1.default);
 app.use('/api/vendors', vendors_1.default);
 app.use('/api/delivery-partners', delivery_1.default);
 app.use('/api/orders', orders_1.default);

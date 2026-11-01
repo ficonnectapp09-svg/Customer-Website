@@ -2501,15 +2501,30 @@ router.patch(['/customer-notifications/read', '/customer-notifications/:id/read'
 
 // FCM / Device Token Registration
 router.post('/notifications/register-token', optionalAuthenticateToken, async (req: Request, res: Response) => {
-  const { token, platform, deviceId, userId } = req.body || {};
+  const { token, platform, deviceId, userId, vendorId, vendorIds, businessIds } = req.body || {};
   const authUser = (req as any).user;
   const targetUser = userId || authUser?.userId || authUser?.customerId || 'anonymous';
+  const targetVendor = vendorId || authUser?.vendorId || targetUser;
+  const allVendorIds = Array.isArray(vendorIds) && vendorIds.length > 0 ? vendorIds : [targetVendor];
+  const allBusinessIds = Array.isArray(businessIds) && businessIds.length > 0 ? businessIds : [];
+
   try {
     const mongoDb = db.getDb();
     if (mongoDb && token) {
       await mongoDb.collection('fcm_tokens').updateOne(
         { token },
-        { $set: { token, platform: platform || 'android', deviceId: deviceId || '', userId: targetUser, updatedAt: new Date() } },
+        {
+          $set: {
+            token,
+            platform: platform || 'android',
+            deviceId: deviceId || '',
+            userId: targetUser,
+            vendorId: targetVendor,
+            vendorIds: allVendorIds,
+            businessIds: allBusinessIds,
+            updatedAt: new Date()
+          }
+        },
         { upsert: true }
       ).catch(() => {});
     }
