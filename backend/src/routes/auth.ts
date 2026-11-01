@@ -2572,4 +2572,157 @@ router.delete(['/customer-notifications/:id', '/notifications/:id'], optionalAut
   }
 });
 
+
+// ==========================================
+// Vendor Notifications Endpoints
+// ==========================================
+router.get(['/vendor-notifications', '/vendor/notifications'], optionalAuthenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const mongoDb = db.getDb();
+    if (!mongoDb) {
+      return res.status(503).json({ status: 'error', message: 'Database not connected', notifications: [], unreadCount: 0 });
+    }
+
+    const authUser = req.user;
+    const requestedId = ((req.query?.vendorId || req.query?.userId || '') as string).trim();
+
+    const targets: string[] = [];
+    if (authUser?.vendorId) targets.push(String(authUser.vendorId).trim());
+    if (authUser?.userId) targets.push(String(authUser.userId).trim());
+    if (authUser?.id) targets.push(String(authUser.id).trim());
+    if (authUser?._id) targets.push(String(authUser._id).trim());
+    if (authUser?.primaryBusinessId) targets.push(String(authUser.primaryBusinessId).trim());
+    if (requestedId) targets.push(requestedId);
+
+    if (targets.length === 0) {
+      return res.json({ status: 'success', notifications: [], unreadCount: 0 });
+    }
+
+    const queryOr: any[] = [];
+    targets.forEach(t => {
+      queryOr.push(
+        { recipientId: t },
+        { vendorId: t },
+        { vendor_id: t },
+        { businessId: t }
+      );
+      if (ObjectId.isValid(t)) {
+        try {
+          queryOr.push({ recipientId: new ObjectId(t) }, { vendorId: new ObjectId(t) });
+        } catch {}
+      }
+    });
+
+    const notifs = await mongoDb.collection('notifications')
+      .find({
+        role: 'vendor',
+        $or: queryOr
+      })
+      .sort({ createdAt: -1, created_at: -1 })
+      .limit(50)
+      .toArray()
+      .catch(() => []);
+
+    const notifications = notifs.map(n => ({
+      id: String(n._id || n.id),
+      orderId: n.orderId || n.order_id || n.id,
+      orderNumber: n.orderNumber || n.order_number || n.orderId,
+      category: n.category || 'Order',
+      title: n.title || 'Notification',
+      message: n.description || n.message || n.text || '',
+      description: n.description || n.message || n.text || '',
+      customerName: n.customerName || n.customer_name || 'Customer',
+      itemName: n.itemName || n.item_name || 'Item',
+      previousStatus: n.previousStatus || '',
+      newStatus: n.newStatus || n.status || '',
+      status: n.status || n.newStatus || '',
+      amount: n.amount ? (typeof n.amount === 'number' ? `₹${n.amount}` : String(n.amount)) : undefined,
+      dateTime: n.createdAt || n.created_at ? new Date(n.createdAt || n.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'Recently',
+      date: n.createdAt || n.created_at || new Date().toISOString(),
+      read: Boolean(n.read || n.isRead),
+      receivedAt: n.createdAt ? new Date(n.createdAt).getTime() : Date.now()
+    }));
+
+    const unreadCount = notifications.filter(n => !n.read).length;
+
+    return res.json({ status: 'success', notifications, unreadCount });
+  } catch (err: any) {
+    return res.status(500).json({ status: 'error', message: err.message, notifications: [], unreadCount: 0 });
+  }
+});
+
+// Mark Vendor Notifications as Read
+router.put(['/vendor-notifications/read', '/vendor/notifications/read', '/vendor-notifications/:id/read', '/vendor/notifications/:id/read'], optionalAuthenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const mongoDb = db.getDb();
+    if (!mongoDb) {
+      return res.status(503).json({ status: 'error', message: 'Database not connected' });
+    }
+
+    const notifId = ((req.params?.id || req.body?.id || req.body?.notificationId || req.query.id || '') as string).trim();
+    const authUser = req.user;
+    const requestedId = ((req.body?.vendorId || req.body?.userId || req.query.vendorId || '') as string).trim();
+
+    if (notifId && notifId !== 'all') {
+      const q: any[] = [{ id: notifId }, { orderId: notifId }];
+      if (ObjectId.isValid(notifId)) {
+        try { q.push({ _id: new ObjectId(notifId) }); } catch {}
+      }
+      await mongoDb.collection('notifications').updateMany(
+        { $or: q },
+        { $set: { read: true, isRead: true } }
+      ).catch(() => {});
+      return res.json({ status: 'success', message: 'Notification marked as read', id: notifId });
+    }
+
+    // Mark all as read for vendor
+    const targets: string[] = [];
+    if (authUser?.vendorId) targets.push(String(authUser.vendorId).trim());
+    if (authUser?.userId) targets.push(String(authUser.userId).trim());
+    if (authUser?.id) targets.push(String(authUser.id).trim());
+    if (authUser?._id) targets.push(String(authUser._id).trim());
+    if (requestedId) targets.push(requestedId);
+
+    if (targets.length > 0) {
+      const q: any[] = [];
+      targets.forEach(t => {
+        q.push({ recipientId: t }, { vendorId: t }, { vendor_id: t });
+        if (ObjectId.isValid(t)) {
+          try { q.push({ recipientId: new ObjectId(t) }, { vendorId: new ObjectId(t) }); } catch {}
+        }
+      });
+      await mongoDb.collection('notifications').updateMany(
+        { role: 'vendor', $or: q },
+        { $set: { read: true, isRead: true } }
+      ).catch(() => {});
+    }
+
+    return res.json({ status: 'success', message: 'All vendor notifications marked as read', unreadCount: 0 });
+  } catch (err: any) {
+    return res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
+// Delete Vendor Notification
+router.delete(['/vendor-notifications/:id', '/vendor/notifications/:id'], optionalAuthenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  const notifId = req.params.id;
+  if (!notifId) {
+    return res.status(400).json({ status: 'error', message: 'Notification ID required' });
+  }
+  try {
+    const mongoDb = db.getDb();
+    if (!mongoDb) {
+      return res.status(503).json({ status: 'error', message: 'Database not connected' });
+    }
+    const q: any[] = [{ id: notifId }];
+    if (ObjectId.isValid(notifId)) {
+      try { q.push({ _id: new ObjectId(notifId) }); } catch {}
+    }
+    await mongoDb.collection('notifications').deleteMany({ $or: q }).catch(() => {});
+    return res.json({ status: 'success', message: 'Notification deleted', id: notifId });
+  } catch (err: any) {
+    return res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
 export default router;

@@ -5,6 +5,7 @@ import { socketManager } from '../socket';
 import { ObjectId } from 'mongodb';
 import Razorpay from 'razorpay';
 import { eventPublisher, RealtimeEntities, RealtimeActions } from '../realtime';
+import { fcmPushService } from '../services/fcmPushService';
 import { authenticateToken, optionalAuthenticateToken, AuthenticatedRequest, paymentRateLimiter, enforceRoleAndApproval } from '../security/middleware';
 const router = Router();
 
@@ -1398,6 +1399,21 @@ router.post('/', async (req: Request, res: Response) => {
         socketManager.emitToVendor(vId, specificMultiEvent, vOrder);
         socketManager.broadcast('new_order_placed', vOrder);
         socketManager.broadcast(specificMultiEvent, vOrder);
+        fcmPushService.dispatchToVendor(vId, {
+          title: `New ${isMultiJob ? 'Job Application' : (isMultiBooking ? 'Booking' : 'Order')} (#${vOrder.order_number || vOrderId})`,
+          body: `${vOrder.customer_name || 'Customer'} placed a new ${isMultiJob ? 'job application' : (isMultiBooking ? 'booking' : 'order')} • ₹${vOrder.amount || 0}`,
+          targetId: String(vOrderId),
+          orderId: String(vOrderId),
+          category: isMultiJob ? 'Jobs' : (isMultiBooking ? 'Bookings' : 'Orders'),
+          segment: isMultiJob ? 'Jobs' : (isMultiBooking ? 'Bookings' : 'Orders'),
+          data: {
+            orderNumber: vOrder.order_number || vOrderId,
+            amount: vOrder.amount || 0,
+            customerName: vOrder.customer_name || 'Customer',
+            itemName: (vOrder.items && vOrder.items[0]?.name) || vOrder.product_details || 'Item',
+            status: vOrder.status || 'Received',
+          }
+        }).catch(() => {});
 
         await eventPublisher.publishEvent(
           specificMultiEntity,
@@ -1532,6 +1548,24 @@ router.post('/', async (req: Request, res: Response) => {
     }
     socketManager.broadcast('new_order_placed', newOrder);
     socketManager.broadcast(specificSingleEvent, newOrder);
+    const targetSingleVid = newOrder.vendor_id || vendor_id;
+    if (targetSingleVid) {
+      fcmPushService.dispatchToVendor(targetSingleVid, {
+        title: `New ${isJobType ? 'Job Application' : (isBookingType ? 'Booking' : 'Order')} (#${newOrder.order_number || newOrder.id})`,
+        body: `${customer_name || 'Customer'} placed a new ${isJobType ? 'job application' : (isBookingType ? 'booking' : 'order')} • ₹${newOrder.amount || 0}`,
+        targetId: String(newOrder.id || (newOrder as any)._id),
+        orderId: String(newOrder.id || (newOrder as any)._id),
+        category: isJobType ? 'Jobs' : (isBookingType ? 'Bookings' : 'Orders'),
+        segment: isJobType ? 'Jobs' : (isBookingType ? 'Bookings' : 'Orders'),
+        data: {
+          orderNumber: newOrder.order_number || newOrder.id,
+          amount: newOrder.amount || 0,
+          customerName: customer_name || 'Customer',
+          itemName: (newOrder.items && newOrder.items[0]?.name) || newOrder.product_details || 'Item',
+          status: newOrder.status || 'Received',
+        }
+      }).catch(() => {});
+    }
 
     // Cross-platform synchronization: notify customer sessions
     const cIdTarget = newOrder.customer_id || resolvedCustId || newOrder.customerId || '';
@@ -1915,23 +1949,138 @@ router.put('/:id/status', authenticateToken, async (req: AuthenticatedRequest, r
     }
 
     const updater = authUser?.role ? `${authUser.role.charAt(0).toUpperCase() + authUser.role.slice(1)}` : 'Vendor';
+    const previousStatus = existingOrder.status || 'Pending';
     await db.logStatusHistory({
       order_id: id,
       status: cleanStatus,
       updated_by: updater,
-      notes: `Order status updated to ${cleanStatus} by ${updater}`
+      notes: `Order status updated from "${previousStatus}" to "${cleanStatus}" by ${updater}`
     });
 
-    socketManager.emitToOrder(id, 'order_status_updated', { status, orderId: id, order: updated });
+    const vendorId = existingOrder.vendor_id || (existingOrder as any).vendorId || (updated as any)?.vendor_id || (updated as any)?.vendorId;
+    const catStr = String((existingOrder as any).category || (updated as any)?.category || '').toLowerCase();
+    const typeStr = String((existingOrder as any).type || (updated as any)?.type || '').toLowerCase();
+    const ordNumStr = String(updated.order_number || id).toUpperCase();
+
+    const isJob = catStr.includes('job') || typeStr.includes('job') || ordNumStr.startsWith('JOB') || Boolean((existingOrder as any).jobTitle || (updated as any)?.jobTitle);
+    const isBooking = !isJob && (
+      catStr.includes('service') || catStr.includes('stay') || catStr.includes('travel') ||
+      typeStr.includes('service') || typeStr.includes('stay') || typeStr.includes('travel') ||
+      typeStr.includes('booking') || typeStr.includes('appointment') || ordNumStr.startsWith('BKG') ||
+      Boolean((existingOrder as any).appointmentDate || (existingOrder as any).checkInDate || (existingOrder as any).travelDate || (existingOrder as any).serviceName || (existingOrder as any).bus_name)
+    );
+
+    const category = isJob ? 'Job' : (isBooking ? 'Booking' : 'Order');
+    const customerName = (updated as any)?.customer_name || (updated as any)?.memberName || (updated as any)?.candidateName || existingOrder.customer_name || (existingOrder as any).memberName || 'Customer';
+    const resolvedItemName = (updated as any)?.product_details || (updated as any)?.items?.[0]?.name || existingOrder.product_details || ((existingOrder as any).items && (existingOrder as any).items[0]?.name) || (existingOrder as any).serviceName || (existingOrder as any).bus_name || (existingOrder as any).jobTitle || 'Item';
+    const finalAmount = updated.finalAmount || updated.totalAmount || updated.amount || 0;
+
+    const statusPayload = {
+      orderId: id,
+      id,
+      order_number: updated.order_number || id,
+      previousStatus,
+      newStatus: cleanStatus,
+      status: cleanStatus,
+      orderStatus: cleanStatus,
+      category,
+      customerName,
+      memberName: customerName,
+      customer_name: customerName,
+      itemName: resolvedItemName,
+      product_details: resolvedItemName,
+      amount: finalAmount,
+      businessName: (updated as any)?.businessName || (existingOrder as any).businessName || '',
+      description: `Status changed from "${previousStatus}" to "${cleanStatus}"`,
+      timestamp: new Date().toISOString(),
+      order: updated,
+      data: updated
+    };
+
+    socketManager.emitToOrder(id, 'order_status_updated', statusPayload);
     const targetCustGen = (updated as any)?.customer_id || (updated as any)?.customerId || (updated as any)?.user_id;
     if (targetCustGen) {
-      socketManager.emitToUser('customer', targetCustGen, 'order_status_updated', { status, orderId: id, order: updated });
+      socketManager.emitToUser('customer', targetCustGen, 'order_status_updated', statusPayload);
     }
+
+    if (vendorId) {
+      socketManager.emitToVendor(String(vendorId), 'order_status_updated', statusPayload);
+      socketManager.emitToVendor(String(vendorId), 'ORDER_STATUS_CHANGED', statusPayload);
+      if (isBooking) {
+        socketManager.emitToVendor(String(vendorId), 'BOOKING_STATUS_CHANGED', statusPayload);
+      } else if (isJob) {
+        socketManager.emitToVendor(String(vendorId), 'APPLICATION_STATUS_CHANGED', statusPayload);
+      }
+      fcmPushService.dispatchToVendor(String(vendorId), {
+        title: `${category} Status Updated`,
+        body: `${(existingOrder as any).itemName || (existingOrder as any).product_details || 'Item'} (#${existingOrder.order_number || id}): ${previousStatus} → ${cleanStatus}`,
+        targetId: String(id),
+        orderId: String(id),
+        category,
+        segment: isJob ? 'Jobs' : (isBooking ? 'Bookings' : 'Orders'),
+        data: {
+          orderId: String(id),
+          previousStatus,
+          newStatus: cleanStatus,
+          status: cleanStatus,
+        }
+      }).catch(() => {});
+    }
+
+    // Insert persistent notification record in MongoDB collection
+    const mongoDb = db.getDb();
+    if (mongoDb && vendorId) {
+      const notifDoc = {
+        recipientId: String(vendorId),
+        vendorId: String(vendorId),
+        role: 'vendor',
+        category,
+        title: `${category} Status Updated`,
+        orderId: id,
+        orderNumber: updated.order_number || id,
+        customerName,
+        itemName: resolvedItemName,
+        previousStatus,
+        newStatus: cleanStatus,
+        status: cleanStatus,
+        amount: finalAmount,
+        businessName: (updated as any)?.businessName || (existingOrder as any).businessName || '',
+        description: `Status changed from "${previousStatus}" to "${cleanStatus}"`,
+        read: false,
+        isRead: false,
+        createdAt: new Date(),
+        created_at: new Date().toISOString(),
+        date: new Date().toISOString()
+      };
+      await mongoDb.collection('notifications').insertOne(notifDoc).catch((e: any) => {
+        console.warn('Vendor status notif persistence warning:', e.message);
+      });
+    }
+
+    // Forward status change downstream to Vendor Backend URL if configured
+    const vendorBackendUrl = process.env.VENDOR_BACKEND_URL;
+    if (vendorBackendUrl) {
+      try {
+        const cleanVendorUrl = vendorBackendUrl.trim().replace(/\/+$/, '');
+        const myPort = String(process.env.PORT || 8001);
+        if (!cleanVendorUrl.includes(`:${myPort}`)) {
+          fetch(`${cleanVendorUrl}/api/vendor/orders/${id}/status`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'authorization': req.headers.authorization || ''
+            },
+            body: JSON.stringify({ status: cleanStatus })
+          }).catch(() => {});
+        }
+      } catch (e) {}
+    }
+
     await eventPublisher.publishEvent(
       RealtimeEntities.ORDER,
       RealtimeActions.STATUS_CHANGED,
       id,
-      { orderId: id, status, updated },
+      statusPayload,
       { room: `order:${id}` }
     );
 

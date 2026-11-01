@@ -431,17 +431,88 @@ router.post('/deliveries/:orderId/step', ...deliveryAuth, async (req: Request, r
       notes
     });
 
-    // Notify rooms
-    socketManager.emitToOrder(orderId, 'order_status_updated', {
-      status: nextStatus,
-      notes,
-      partner
-    });
-    socketManager.emitToVendor(order.vendor_id, 'order_status_updated', {
+    // Notify rooms and persist vendor notification
+    const previousStatus = order.status || 'Pending';
+    const resolvedCustomer = (updatedOrder as any)?.customer_name || (updatedOrder as any)?.memberName || (order as any)?.customer_name || (order as any)?.memberName || 'Customer';
+    const resolvedItem = (updatedOrder as any)?.product_details || (updatedOrder as any)?.items?.[0]?.name || (order as any)?.product_details || ((order as any)?.items && (order as any).items[0]?.name) || 'Order Item';
+    const resolvedAmount = (updatedOrder as any)?.finalAmount || (updatedOrder as any)?.totalAmount || (updatedOrder as any)?.amount || (order as any)?.finalAmount || 0;
+
+    const statusPayload = {
       orderId,
+      id: orderId,
+      order_number: (updatedOrder as any)?.order_number || (order as any)?.order_number || orderId,
+      previousStatus,
+      newStatus: nextStatus,
       status: nextStatus,
-      partnerId
-    });
+      orderStatus: nextStatus,
+      category: 'Order',
+      customerName: resolvedCustomer,
+      memberName: resolvedCustomer,
+      customer_name: resolvedCustomer,
+      itemName: resolvedItem,
+      product_details: resolvedItem,
+      amount: resolvedAmount,
+      description: `Delivery status updated to ${nextStatus}`,
+      notes,
+      partner,
+      partnerId,
+      timestamp: new Date().toISOString(),
+      order: updatedOrder,
+      data: updatedOrder
+    };
+
+    socketManager.emitToOrder(orderId, 'order_status_updated', statusPayload);
+    if (order.vendor_id) {
+      socketManager.emitToVendor(String(order.vendor_id), 'order_status_updated', statusPayload);
+      socketManager.emitToVendor(String(order.vendor_id), 'ORDER_STATUS_CHANGED', statusPayload);
+
+      // Persist notification for vendor in MongoDB
+      const mongoDb = db.getDb();
+      if (mongoDb) {
+        mongoDb.collection('notifications').insertOne({
+          recipientId: String(order.vendor_id),
+          vendorId: String(order.vendor_id),
+          role: 'vendor',
+          category: 'Order',
+          title: 'Order Status Updated',
+          orderId,
+          orderNumber: (updatedOrder as any)?.order_number || (order as any)?.order_number || orderId,
+          customerName: resolvedCustomer,
+          itemName: resolvedItem,
+          previousStatus,
+          newStatus: nextStatus,
+          status: nextStatus,
+          amount: resolvedAmount,
+          description: `Order marked as ${nextStatus} by delivery partner`,
+          read: false,
+          isRead: false,
+          createdAt: new Date(),
+          created_at: new Date().toISOString(),
+          date: new Date().toISOString()
+        }).catch((e: any) => {
+          console.warn('Delivery vendor notification insert warning:', e.message);
+        });
+      }
+
+      // Sync downstream to Vendor Backend URL if configured
+      const vendorBackendUrl = process.env.VENDOR_BACKEND_URL;
+      if (vendorBackendUrl) {
+        try {
+          const cleanVendorUrl = vendorBackendUrl.trim().replace(/\/+$/, '');
+          const myPort = String(process.env.PORT || 8001);
+          if (!cleanVendorUrl.includes(`:${myPort}`)) {
+            fetch(`${cleanVendorUrl}/api/vendor/orders/${orderId}/status`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'authorization': req.headers.authorization || ''
+              },
+              body: JSON.stringify({ status: nextStatus })
+            }).catch(() => {});
+          }
+        } catch (e) {}
+      }
+    }
 
     res.json({
       status: 'success',
