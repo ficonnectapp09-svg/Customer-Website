@@ -731,7 +731,7 @@ router.post('/', async (req: Request, res: Response) => {
     type === 'Services' || type === 'Service' ||
     (typeof type === 'string' && (type.toLowerCase().includes('service')));
 
-  const isBookingWithoutPhysicalDelivery = isTravelOrStayBooking || isServiceBooking;
+  const isBookingWithoutPhysicalDelivery = isTravelOrStayBooking;
 
   if (!customer_name || !customer_phone || (!isBookingWithoutPhysicalDelivery && !customer_address) || amount === undefined || amount === null) {
     return res.status(400).json({
@@ -742,7 +742,48 @@ router.post('/', async (req: Request, res: Response) => {
     });
   }
 
-  const resolvedCustomerAddress = customer_address || (isBookingWithoutPhysicalDelivery ? 'N/A (Booking Service)' : '');
+  const resolvedCustomerAddress = customer_address || req.body.customerAddress || req.body.address || (isTravelOrStayBooking ? 'N/A (Travel / Stay Booking)' : 'Indiranagar, Bangalore');
+
+  // Schedule & service details resolution for bookings
+  let resolvedAppointmentDate = appointmentDate || req.body.bookingDate || req.body.serviceDate || req.body.date || '';
+  let resolvedAppointmentTimeSlot = appointmentTimeSlot || req.body.bookingTime || req.body.serviceTime || req.body.slot || req.body.timeSlot || '';
+
+  const rawSlot = String(req.body.appointment_slot || req.body.appointmentSlot || '').trim();
+  if (rawSlot && (!resolvedAppointmentDate || !resolvedAppointmentTimeSlot)) {
+    if (rawSlot.includes(' at ')) {
+      const [dPart, tPart] = rawSlot.split(' at ');
+      if (!resolvedAppointmentDate && dPart) resolvedAppointmentDate = dPart.trim();
+      if (!resolvedAppointmentTimeSlot && tPart) resolvedAppointmentTimeSlot = tPart.trim();
+    } else if (!resolvedAppointmentDate) {
+      resolvedAppointmentDate = rawSlot;
+    }
+  }
+
+  if ((!resolvedAppointmentDate || !resolvedAppointmentTimeSlot) && product_details) {
+    const match = String(product_details).match(/[•·]\\s*([A-Za-z0-9,\\s]+?)\\s+at\\s+([0-9:AMPMapm\\s]+)/);
+    if (match) {
+      if (!resolvedAppointmentDate && match[1]) resolvedAppointmentDate = match[1].trim();
+      if (!resolvedAppointmentTimeSlot && match[2]) resolvedAppointmentTimeSlot = match[2].trim();
+    }
+  }
+
+  // Service Name resolution
+  let resolvedServiceName = req.body.serviceName || '';
+  const GENERIC_CATEGORY_NAMES = [
+    'electrical & solar services', 'electrical & solar', 'electrical services',
+    'plumbing services', 'plumbing', 'home services', 'services', 'service',
+    'cleaning services', 'repair services', 'general service', 'daily needs',
+    'food', 'products', 'stay', 'travel'
+  ];
+  if (!resolvedServiceName || GENERIC_CATEGORY_NAMES.includes(resolvedServiceName.trim().toLowerCase())) {
+    if (firstItem?.name) {
+      const nameMatch = firstItem.name.match(/^([^(•·\\n\\r]+)/);
+      resolvedServiceName = nameMatch ? nameMatch[1].trim() : firstItem.name;
+    } else if (product_details) {
+      const nameMatch = String(product_details).match(/^([^(•·\\n\\r]+)/);
+      if (nameMatch) resolvedServiceName = nameMatch[1].trim();
+    }
+  }
 
   try {
     const mongoDb = db.getDb();
@@ -1334,6 +1375,10 @@ router.post('/', async (req: Request, res: Response) => {
           payment_status: resolvedPaymentStatus,
           ...(resolvedTxnId && { transactionId: resolvedTxnId }),
           ...(resolvedPaidAt && { paidAt: resolvedPaidAt }),
+          appointmentDate: resolvedAppointmentDate || null,
+          appointmentTimeSlot: resolvedAppointmentTimeSlot || null,
+          appointment_slot: (resolvedAppointmentDate && resolvedAppointmentTimeSlot) ? (resolvedAppointmentDate + " at " + resolvedAppointmentTimeSlot) : (rawSlot || undefined),
+          serviceName: resolvedServiceName || undefined,
           items: vItems
         });
 
@@ -1383,7 +1428,11 @@ router.post('/', async (req: Request, res: Response) => {
           paymentStatus: resolvedPaymentStatus,
           payment_status: resolvedPaymentStatus,
           ...(resolvedTxnId && { transactionId: resolvedTxnId }),
-          ...(resolvedPaidAt && { paidAt: resolvedPaidAt })
+          ...(resolvedPaidAt && { paidAt: resolvedPaidAt }),
+          appointmentDate: resolvedAppointmentDate,
+          appointmentTimeSlot: resolvedAppointmentTimeSlot,
+          serviceName: resolvedServiceName,
+          serviceLocation: resolvedCustomerAddress
         });
 
         createdOrders.push(vOrder);
@@ -1425,8 +1474,10 @@ router.post('/', async (req: Request, res: Response) => {
       payment_status: resolvedPaymentStatus,
       ...(resolvedTxnId && { transactionId: resolvedTxnId }),
       ...(resolvedPaidAt && { paidAt: resolvedPaidAt }),
-      appointmentDate,
-      appointmentTimeSlot,
+      appointmentDate: resolvedAppointmentDate || null,
+      appointmentTimeSlot: resolvedAppointmentTimeSlot || null,
+      appointment_slot: (resolvedAppointmentDate && resolvedAppointmentTimeSlot) ? (resolvedAppointmentDate + " at " + resolvedAppointmentTimeSlot) : (rawSlot || undefined),
+      serviceName: resolvedServiceName || undefined,
       appointmentType: req.body.appointmentType || req.body.serviceType,
       serviceType: req.body.serviceType || req.body.appointmentType,
       doctorName,
@@ -1561,8 +1612,10 @@ router.post('/', async (req: Request, res: Response) => {
         candidateResume: candidateResume || req.body.candidateResume,
         experience: experience || req.body.experience,
         candidateEducation: candidateEducation || req.body.candidateEducation,
-        appointmentDate,
-        appointmentTimeSlot,
+        appointmentDate: resolvedAppointmentDate,
+        appointmentTimeSlot: resolvedAppointmentTimeSlot,
+        serviceName: resolvedServiceName,
+        serviceLocation: resolvedCustomerAddress,
         doctorName,
         tableNumber,
         roomNumber,
