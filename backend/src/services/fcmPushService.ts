@@ -117,6 +117,93 @@ class FcmPushService {
   }
 
   /**
+   * Dispatch push notification to registered customer device tokens
+   */
+  async dispatchToCustomer(
+    customerId: string | ObjectId,
+    payload: FcmPushPayload
+  ): Promise<FcmDispatchResult> {
+    if (!customerId) {
+      return { success: false, tokensTargeted: 0, tokensDelivered: 0, error: 'No customerId provided' };
+    }
+
+    try {
+      const mongoDb = db.getDb();
+      if (!mongoDb) {
+        return { success: false, tokensTargeted: 0, tokensDelivered: 0, error: 'Database unavailable' };
+      }
+
+      const cidStr = customerId.toString();
+      const targetConditions: any[] = [
+        { userId: cidStr },
+        { customerId: cidStr },
+        { registrationId: cidStr },
+        { phone: cidStr },
+      ];
+
+      if (ObjectId.isValid(cidStr)) {
+        targetConditions.push({ userId: new ObjectId(cidStr) });
+      }
+
+      // Query registered customer tokens from MongoDB fcm_tokens
+      const tokenDocs = await mongoDb
+        .collection('fcm_tokens')
+        .find({ $or: targetConditions })
+        .toArray()
+        .catch(() => []);
+
+      const tokens: string[] = [];
+      tokenDocs.forEach((doc: any) => {
+        if (doc && typeof doc.token === 'string' && doc.token.length > 10) {
+          tokens.push(doc.token);
+        }
+      });
+
+      // Insert into notifications collection for persistent notification history
+      try {
+        await mongoDb.collection('notifications').insertOne({
+          customerId: cidStr,
+          userId: cidStr,
+          role: 'customer',
+          title: payload.title,
+          body: payload.body,
+          targetId: payload.targetId || payload.orderId || '',
+          orderId: payload.targetId || payload.orderId || '',
+          category: payload.category || 'Orders',
+          segment: payload.segment || 'Orders',
+          data: payload.data || {},
+          isRead: false,
+          createdAt: new Date(),
+        });
+      } catch (insertErr) {
+        // Non-blocking
+      }
+
+      if (tokens.length === 0) {
+        console.log(`[FcmPushService] No registered FCM tokens found for customer ${cidStr}`);
+        return { success: true, tokensTargeted: 0, tokensDelivered: 0 };
+      }
+
+      console.log(`[FcmPushService] Dispatching push to ${tokens.length} tokens for customer ${cidStr}`);
+
+      let delivered = 0;
+      for (const token of tokens) {
+        const ok = await this.sendSinglePush(token, payload);
+        if (ok) delivered++;
+      }
+
+      return {
+        success: delivered > 0,
+        tokensTargeted: tokens.length,
+        tokensDelivered: delivered,
+      };
+    } catch (err: any) {
+      console.warn('[FcmPushService] Push dispatch to customer warning:', err?.message || err);
+      return { success: false, tokensTargeted: 0, tokensDelivered: 0, error: err?.message };
+    }
+  }
+
+  /**
    * Send single message to FCM device token via FCM HTTP Endpoint
    */
   private sendSinglePush(token: string, payload: FcmPushPayload): Promise<boolean> {

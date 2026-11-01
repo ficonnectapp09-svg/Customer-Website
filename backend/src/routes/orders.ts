@@ -1740,6 +1740,19 @@ router.post('/:id/prepare', authenticateToken, enforceRoleAndApproval('vendor', 
     const targetCustPrep = (updated as any)?.customer_id || (updated as any)?.customerId || (updated as any)?.user_id;
     if (targetCustPrep) {
       socketManager.emitToUser('customer', targetCustPrep, 'order_status_updated', { status: 'Preparing', orderId: id, order: updated });
+      fcmPushService.dispatchToCustomer(String(targetCustPrep), {
+        title: 'Order Preparing 🍳',
+        body: `Your order #${(updated as any)?.order_number || id} is being prepared by the vendor.`,
+        targetId: String(id),
+        orderId: String(id),
+        category: (updated as any)?.category || 'Products',
+        segment: 'Orders',
+        data: {
+          orderId: String(id),
+          status: 'Preparing',
+          targetScreen: 'Orders',
+        },
+      }).catch(() => {});
     }
     await eventPublisher.publishEvent(
       RealtimeEntities.ORDER,
@@ -1780,6 +1793,19 @@ router.post('/:id/ready', authenticateToken, enforceRoleAndApproval('vendor', 'a
     const targetCustReady = (updated as any)?.customer_id || (updated as any)?.customerId || (updated as any)?.user_id;
     if (targetCustReady) {
       socketManager.emitToUser('customer', targetCustReady, 'order_status_updated', { status: 'Ready For Pickup', orderId: id, order: updated });
+      fcmPushService.dispatchToCustomer(String(targetCustReady), {
+        title: 'Order Ready For Pickup 📦',
+        body: `Your order #${(updated as any)?.order_number || id} is packed and ready for delivery/pickup.`,
+        targetId: String(id),
+        orderId: String(id),
+        category: (updated as any)?.category || 'Products',
+        segment: 'Orders',
+        data: {
+          orderId: String(id),
+          status: 'Ready For Pickup',
+          targetScreen: 'Orders',
+        },
+      }).catch(() => {});
     }
     await eventPublisher.publishEvent(
       RealtimeEntities.ORDER,
@@ -2001,6 +2027,21 @@ router.put('/:id/status', authenticateToken, async (req: AuthenticatedRequest, r
     const targetCustGen = (updated as any)?.customer_id || (updated as any)?.customerId || (updated as any)?.user_id;
     if (targetCustGen) {
       socketManager.emitToUser('customer', targetCustGen, 'order_status_updated', statusPayload);
+      fcmPushService.dispatchToCustomer(String(targetCustGen), {
+        title: `${category} Status Updated`,
+        body: `${(existingOrder as any).itemName || (existingOrder as any).product_details || 'Your order'} (#${existingOrder.order_number || id}): ${previousStatus} → ${cleanStatus}`,
+        targetId: String(id),
+        orderId: String(id),
+        category,
+        segment: isJob ? 'Jobs' : (isBooking ? 'Bookings' : 'Orders'),
+        data: {
+          orderId: String(id),
+          previousStatus,
+          newStatus: cleanStatus,
+          status: cleanStatus,
+          screen: 'Orders',
+        }
+      }).catch(() => {});
     }
 
     if (vendorId) {
