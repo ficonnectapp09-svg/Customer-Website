@@ -675,7 +675,7 @@ async function forwardOrderToVendorBackend(order: any, syncPayload: any) {
 
 
 // POST: /api/orders
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', optionalAuthenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   let {
     vendor_id, customer_id, customerId, customer_email, customer_name, customer_phone, customer_address,
     product_details, amount, customer_latitude, customer_longitude,
@@ -863,8 +863,35 @@ router.post('/', async (req: Request, res: Response) => {
     const prefix = isBookingType ? 'BKG' : isJobType ? 'JOB' : 'ORD';
     const orderId = prefix + Math.floor(1000 + Math.random() * 9000);
     const orderNo = prefix + Math.floor(100000 + Math.random() * 900000);
-    const resolvedCustId = (customer_id || customerId || memberId || req.body.user_id || (req as any).user?.customerId || (req as any).user?.registrationId || (req as any).user?.userId || '').trim();
-    const resolvedEmail = (customer_email || candidateEmail || (req as any).user?.email || '').trim();
+    const authCust = (req as any).user;
+    let resolvedCustId = (
+      (authCust?.role === 'customer' && (authCust.customerId || authCust.registrationId)) ||
+      customer_id || customerId || memberId || req.body.user_id || authCust?.customerId || authCust?.registrationId || authCust?.userId || ''
+    ).trim();
+    const resolvedEmail = (customer_email || candidateEmail || authCust?.email || '').trim();
+
+    // Canonical Customer ID resolution: Ensure order is associated with the canonical FIC-CUS ID from database
+    if (mongoDb && (!resolvedCustId || !resolvedCustId.startsWith('FIC-CUS-') || authCust?.userId || authCust?.email)) {
+      try {
+        const lookupFilter: any[] = [];
+        if (authCust?.userId) lookupFilter.push({ id: authCust.userId }, { _id: authCust.userId });
+        if (authCust?.email) lookupFilter.push({ email: authCust.email.toLowerCase().trim() });
+        if (resolvedEmail) lookupFilter.push({ email: resolvedEmail.toLowerCase().trim() });
+        const cleanCustPhone = (customer_phone || authCust?.phone || '').toString().replace(/\D/g, '').slice(-10);
+        if (cleanCustPhone.length === 10) {
+          lookupFilter.push({ phone: cleanCustPhone }, { phone: `+91${cleanCustPhone}` });
+        }
+        if (lookupFilter.length > 0) {
+          const userDoc = await mongoDb.collection('users').findOne({ $or: lookupFilter }) ||
+                          await mongoDb.collection('customers').findOne({ $or: lookupFilter });
+          if (userDoc && (userDoc.customerId || userDoc.registrationId)) {
+            resolvedCustId = (userDoc.customerId || userDoc.registrationId).trim();
+          }
+        }
+      } catch (custLookupErr) {
+        console.warn('[POST /orders] Customer canonical ID lookup notice:', custLookupErr);
+      }
+    }
 
     if (isJobType) {
       const candidateName = String(req.body.customer_name || req.body.candidateName || req.body.applicantName || customer_name || '').trim();
