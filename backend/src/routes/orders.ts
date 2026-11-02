@@ -1415,6 +1415,27 @@ router.post('/', async (req: Request, res: Response) => {
           }
         }).catch(() => {});
 
+        const multiCustId = vOrder.customer_id || resolvedCustId || vOrder.customerId || '';
+        if (multiCustId) {
+          socketManager.emitToUser('customer', multiCustId, 'new_order_placed', vOrder);
+          socketManager.emitToUser('customer', multiCustId, 'order_created', vOrder);
+          socketManager.emitToUser('customer', multiCustId, specificMultiEvent, vOrder);
+          fcmPushService.dispatchToCustomer(multiCustId, {
+            title: isMultiJob ? 'Job Application Submitted! 💼' : (isMultiBooking ? 'Booking Confirmed! 📅' : 'Order Placed Successfully! 🛍️'),
+            body: `${(vOrder.items && vOrder.items[0]?.name) || vOrder.product_details || 'Your order'} (#${vOrder.order_number || vOrderId}) has been placed.`,
+            targetId: String(vOrderId),
+            orderId: String(vOrderId),
+            category: isMultiJob ? 'Jobs' : (isMultiBooking ? 'Bookings' : 'Orders'),
+            segment: isMultiJob ? 'Jobs' : (isMultiBooking ? 'Bookings' : 'Orders'),
+            data: {
+              orderId: String(vOrderId),
+              orderNumber: vOrder.order_number || vOrderId,
+              status: vOrder.status || 'Received',
+              targetScreen: 'Orders',
+            },
+          }).catch(() => {});
+        }
+
         await eventPublisher.publishEvent(
           specificMultiEntity,
           RealtimeActions.CREATED,
@@ -1573,6 +1594,20 @@ router.post('/', async (req: Request, res: Response) => {
       socketManager.emitToUser('customer', cIdTarget, 'new_order_placed', newOrder);
       socketManager.emitToUser('customer', cIdTarget, 'order_created', newOrder);
       socketManager.emitToUser('customer', cIdTarget, specificSingleEvent, newOrder);
+      fcmPushService.dispatchToCustomer(cIdTarget, {
+        title: isJobType ? 'Job Application Submitted! 💼' : (isBookingType ? 'Booking Confirmed! 📅' : 'Order Placed Successfully! 🛍️'),
+        body: `${(newOrder.items && newOrder.items[0]?.name) || newOrder.product_details || 'Your order'} (#${newOrder.order_number || newOrder.id}) has been placed.`,
+        targetId: String(newOrder.id || (newOrder as any)._id),
+        orderId: String(newOrder.id || (newOrder as any)._id),
+        category: isJobType ? 'Jobs' : (isBookingType ? 'Bookings' : 'Orders'),
+        segment: isJobType ? 'Jobs' : (isBookingType ? 'Bookings' : 'Orders'),
+        data: {
+          orderId: String(newOrder.id || (newOrder as any)._id),
+          orderNumber: newOrder.order_number || newOrder.id,
+          status: newOrder.status || 'Received',
+          targetScreen: 'Orders',
+        },
+      }).catch(() => {});
     }
     const uIdTarget = (newOrder as any).user_id;
     if (uIdTarget && uIdTarget !== cIdTarget) {

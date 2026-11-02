@@ -214,15 +214,35 @@ class FcmPushService {
         return resolve(true);
       }
 
+      // Dynamically resolve target channel and sound based on role and category
+      let resolvedChannel = 'connect_orders_realtime_channel';
+      let resolvedSound = 'default';
+      const catLower = String(payload.category || '').toLowerCase();
+      const isVendor = token.includes('ven_') || payload.data?.role === 'vendor' || payload.segment === 'Vendor';
+      if (isVendor) {
+        resolvedChannel = (payload.title.includes('Status') || payload.title.includes('Updated')) ? 'vendor_updates_v1' : 'vendor_order_alerts_v2';
+        resolvedSound = 'vendor_alert';
+      } else {
+        if (catLower.includes('offer') || catLower.includes('discount') || catLower.includes('deal')) {
+          resolvedChannel = 'connect_offers_channel';
+        } else if (catLower.includes('membership') || catLower.includes('account') || catLower.includes('wallet')) {
+          resolvedChannel = 'connect_account_channel';
+        } else if (catLower.includes('system') || catLower.includes('announcement')) {
+          resolvedChannel = 'connect_default_channel';
+        } else {
+          resolvedChannel = 'connect_orders_realtime_channel';
+        }
+      }
+
       const postData = JSON.stringify({
         to: token,
         priority: 'high',
         notification: {
           title: payload.title,
           body: payload.body,
-          sound: 'vendor_alert',
-          channel_id: 'vendor_order_alerts_v2',
-          android_channel_id: 'vendor_order_alerts_v2',
+          sound: resolvedSound,
+          channel_id: resolvedChannel,
+          android_channel_id: resolvedChannel,
           click_action: 'OPEN_NOTIFICATION',
         },
         data: {
