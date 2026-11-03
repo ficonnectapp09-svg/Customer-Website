@@ -75,7 +75,7 @@ class FcmPushService {
             console.log(`[FcmPushService] Dispatching push to ${tokens.length} tokens for vendor ${vidStr}`);
             let delivered = 0;
             for (const token of tokens) {
-                const ok = await this.sendSinglePush(token, payload);
+                const ok = await this.sendSinglePush(token, payload, true);
                 if (ok)
                     delivered++;
             }
@@ -151,7 +151,7 @@ class FcmPushService {
             console.log(`[FcmPushService] Dispatching push to ${tokens.length} tokens for customer ${cidStr}`);
             let delivered = 0;
             for (const token of tokens) {
-                const ok = await this.sendSinglePush(token, payload);
+                const ok = await this.sendSinglePush(token, payload, false);
                 if (ok)
                     delivered++;
             }
@@ -169,7 +169,7 @@ class FcmPushService {
     /**
      * Send single message to FCM device token via FCM HTTP Endpoint
      */
-    sendSinglePush(token, payload) {
+    sendSinglePush(token, payload, isVendorTarget = false) {
         return new Promise((resolve) => {
             if (!this.serverKey) {
                 // When server key is not configured, simulate successful queueing
@@ -180,7 +180,7 @@ class FcmPushService {
             let resolvedChannel = 'connect_orders_realtime_channel';
             let resolvedSound = 'default';
             const catLower = String(payload.category || '').toLowerCase();
-            const isVendor = token.includes('ven_') || payload.data?.role === 'vendor' || payload.segment === 'Vendor';
+            const isVendor = isVendorTarget || token.includes('ven_') || payload.data?.role === 'vendor' || payload.segment === 'Vendor' || payload.segment === 'Orders' || payload.segment === 'Bookings' || payload.segment === 'Jobs';
             if (isVendor) {
                 resolvedChannel = (payload.title.includes('Status') || payload.title.includes('Updated')) ? 'vendor_updates_v1' : 'vendor_order_alerts_v2';
                 resolvedSound = 'vendor_alert';
@@ -216,8 +216,9 @@ class FcmPushService {
                     body: payload.body,
                     targetId: payload.targetId || payload.orderId || '',
                     orderId: payload.targetId || payload.orderId || '',
-                    category: payload.category || 'Orders',
-                    segment: payload.segment || 'Orders',
+                    category: payload.category || (isVendor ? 'Orders' : 'order'),
+                    segment: payload.segment || (isVendor ? 'Orders' : 'order'),
+                    role: isVendor ? 'vendor' : 'customer',
                     ...(payload.data || {}),
                 },
             });
@@ -241,6 +242,9 @@ class FcmPushService {
                     }
                     else {
                         console.warn('[FcmPushService] FCM API response code:', res.statusCode, responseBody);
+                        if (responseBody && (responseBody.includes('NotRegistered') || responseBody.includes('InvalidRegistration'))) {
+                            db_1.db.getDb()?.collection('fcm_tokens').deleteOne({ token }).catch(() => { });
+                        }
                         resolve(false);
                     }
                 });
