@@ -856,6 +856,32 @@ router.post('/', optionalAuthenticateToken, async (req: AuthenticatedRequest, re
           message: 'This vendor is currently suspended and cannot receive new orders or bookings.'
         });
       }
+
+      // Check Store Availability (Store Open / Store Closed Order Control)
+      if (mongoDb) {
+        try {
+          const vIdStr = String(vendor_id).trim();
+          const orConditions: any[] = [
+            { vendorId: vIdStr },
+            { registrationId: vIdStr },
+            { regId: vIdStr },
+            { primaryBusinessId: vIdStr },
+            { 'businesses._id': vIdStr },
+          ];
+          if (ObjectId.isValid(vIdStr)) {
+            orConditions.push({ _id: new ObjectId(vIdStr) });
+          } else {
+            orConditions.push({ _id: vIdStr });
+          }
+          const vUser = await mongoDb.collection('users').findOne({ $or: orConditions });
+          if (vUser && (vUser.isAcceptingOrders === false || vUser.acceptingOrders === false)) {
+            return res.status(403).json({
+              status: 'error',
+              message: 'This store is currently closed and not accepting new orders.'
+            });
+          }
+        } catch (e) {}
+      }
     }
 
     const isBookingType = ['Booking', 'Stay', 'Travel', 'Services'].includes(type) || req.body.order_type === 'booking';
@@ -1394,7 +1420,7 @@ router.post('/', optionalAuthenticateToken, async (req: AuthenticatedRequest, re
           product_details: vProdDetails,
           amount: vAmount,
           totalAmount: vAmount,
-          status: isJobType ? (req.body.status || 'APPLICATION RECEIVED') : (req.body.status || 'Order Received'),
+          status: isJobType ? (req.body.status || 'APPLICATION RECEIVED') : (isBookingType ? (req.body.status || 'Booking Received') : (req.body.status || 'Order Received')),
           type: type || (isJobType ? 'Job' : (isBookingType ? (req.body.category || 'Services') : 'Order')),
           category: req.body.category || vItems[0]?.category || vItems[0]?.mainCategory || (isJobType ? 'Jobs' : (isBookingType ? 'Services' : 'Products')),
           paymentMethod: resolvedPaymentMethod,
@@ -1529,7 +1555,7 @@ router.post('/', optionalAuthenticateToken, async (req: AuthenticatedRequest, re
       product_details: product_details || travelProduct?.name || 'Generic Connect Item',
       amount: finalOrderAmount,
       totalAmount: finalOrderAmount,
-      status: isJobType ? (req.body.status || 'APPLICATION RECEIVED') : (req.body.status || 'Order Received'),
+      status: isJobType ? (req.body.status || 'APPLICATION RECEIVED') : (isBookingType ? (req.body.status || 'Booking Received') : (req.body.status || 'Order Received')),
       type: type || (isJobType ? 'Job' : (isBookingType ? (req.body.category || 'Services') : 'Order')),
       category: req.body.category || (items && items[0]?.category) || (items && items[0]?.mainCategory) || (isJobType ? 'Jobs' : (isBookingType ? 'Services' : 'Products')),
       paymentMethod: resolvedPaymentMethod,
