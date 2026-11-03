@@ -94,6 +94,21 @@ export default function CategoryDetails({ category, onBack, onSubCategoryClick }
 
   // Mega Menu Configurations (source of truth for sub-categories)
   const categoryData = {
+    'Jobs': {
+      tagline: 'Verified career opportunities across leading technology and enterprise sectors.',
+      subCategories: [
+        {
+          title: 'IT',
+          items: ['Data Analyst', 'Full Stack Developer', 'Cloud Engineer', 'DevOps Specialist']
+        },
+        {
+          title: 'Non-IT',
+          items: ['Data Associate', 'System Administrator', 'Operations Lead', 'Support Executive']
+        }
+      ],
+      isProductGrid: true,
+      products: []
+    },
     'Services': {
       tagline: 'On-demand excellence delivered by verified industry professionals.',
       subCategories: [
@@ -346,7 +361,8 @@ export default function CategoryDetails({ category, onBack, onSubCategoryClick }
     return {
       tagline: staticData.tagline || 'Audited partner catalog.',
       subCategories: mergedSubCategories,
-      mockPartners: mergedPartners
+      mockPartners: mergedPartners,
+      products: matchingProducts
     };
   };
 
@@ -384,7 +400,7 @@ export default function CategoryDetails({ category, onBack, onSubCategoryClick }
 
   // Filter and Sort Logic for Products
   let displayedProducts = [];
-  if (data.isProductGrid && data.products) {
+  if (data.products && Array.isArray(data.products) && data.products.length > 0) {
     displayedProducts = [...data.products];
 
     // 1. Search Query Filter
@@ -483,7 +499,7 @@ export default function CategoryDetails({ category, onBack, onSubCategoryClick }
         </div>
 
         {/* Categories Section */}
-        {!data.isProductGrid && (
+        {filteredSubCategories.length > 0 && (
           <div className="mb-16">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-6 pb-2 border-b border-slate-200 dark:border-slate-800">
               Available Categories & Types
@@ -530,13 +546,7 @@ export default function CategoryDetails({ category, onBack, onSubCategoryClick }
 
         {/* Featured Partners / Products Section */}
         <div>
-          {!data.isProductGrid && (
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-6 pb-2 border-b border-slate-200 dark:border-slate-800">
-              Featured Partner Outlets ({filteredPartners.length})
-            </h2>
-          )}
-
-          {data.isProductGrid ? (
+          {displayedProducts.length > 0 ? (
             <>
               {/* Interactive Filter Bar */}
               <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 mb-8 flex flex-col md:flex-row md:items-center md:justify-end gap-4 shadow-sm shadow-slate-100/50">

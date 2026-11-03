@@ -2070,10 +2070,10 @@ router.patch('/customer-address/:addressId', middleware_1.authenticateToken, han
 router.patch('/customer-address/:addressId/default', middleware_1.authenticateToken, handleSetDefaultAddress);
 router.delete('/customer-address/:addressId', middleware_1.authenticateToken, handleDeleteAddress);
 // Customer Notifications Endpoints
-router.get('/customer-notifications', middleware_1.authenticateToken, async (req, res) => {
+router.get('/customer-notifications', middleware_1.optionalAuthenticateToken, async (req, res) => {
     const authUser = req.user;
     if (!authUser) {
-        return res.status(401).json({ status: 'error', code: 'UNAUTHORIZED', message: 'Authentication required.' });
+        return res.json({ status: 'success', notifications: [], unreadCount: 0 });
     }
     const requestedId = (req.query.userId || req.query.customerId || req.query.phone || req.query.email || '').trim();
     const isAdmin = authUser?.role === 'admin' || authUser?.role === 'superadmin';

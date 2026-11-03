@@ -89,24 +89,21 @@ const inferSubNavbarCategory = (p) => {
     return null;
   };
 
-  // Disambiguation: Food records must never be classified as Jobs
-  const isFoodCandidate = Boolean(
-    p.foodType ||
-    (p.businessType && String(p.businessType).toLowerCase() === 'food') ||
-    ['parotta', 'biryani', 'biriyani', 'dosa', 'idli', 'idly', 'thali', 'pizza', 'burger', 'fast food', 'south indian', 'north indian', 'meals', 'south indian meals'].some(k => 
-      rawName.toLowerCase().includes(k) || rawSubCat.toLowerCase().includes(k) || rawSubSubCat.toLowerCase().includes(k)
-    )
-  );
-  if (isFoodCandidate && (matchMainCat(rawSubCat) === 'Food' || matchMainCat(rawSubSubCat) === 'Food' || matchMainCat(rawName) === 'Food' || p.foodType)) {
-    return 'Food';
-  }
-
-  // 1. Check explicit fields first
+  // 1. Check explicit canonical fields first (subNavbarCategory & mainCategory)
   const subNavMatch = matchMainCat(rawSubNav);
   if (subNavMatch) return subNavMatch;
 
   const mainCatMatch = matchMainCat(rawMainCat);
   if (mainCatMatch) return mainCatMatch;
+
+  // Disambiguation: Genuine Food keywords (never rely on p.foodType alone as Mongoose schema defaults it to 'Veg' for all collections)
+  const isActualFoodKeyword = ['parotta', 'biryani', 'biriyani', 'dosa', 'idli', 'idly', 'thali', 'pizza', 'burger', 'fast food', 'south indian meals', 'meals'].some(k => 
+    rawName.toLowerCase().includes(k) || rawSubCat.toLowerCase().includes(k) || rawSubSubCat.toLowerCase().includes(k)
+  );
+
+  if (isActualFoodKeyword || (p.businessType && String(p.businessType).toLowerCase() === 'food')) {
+    return 'Food';
+  }
 
   const catMatch = matchMainCat(rawCat);
   if (catMatch) return catMatch;
@@ -124,7 +121,7 @@ const inferSubNavbarCategory = (p) => {
   if (typeMatch) return typeMatch;
 
   // 2. Check for Jobs specific indicators (jobTitle, jobLocation, salary)
-  if (!isFoodCandidate && (p.jobTitle || p.jobLocation || p.experienceRequired || p.minExperience)) {
+  if (!isActualFoodKeyword && (p.jobTitle || p.jobLocation || p.experienceRequired || p.minExperience || rawType.toLowerCase().includes('job') || rawType.toLowerCase().includes('full-time') || rawType.toLowerCase().includes('part-time'))) {
     return 'Jobs';
   }
 

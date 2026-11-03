@@ -821,14 +821,12 @@ export function isJobCardItem(item) {
   const subSub = String(item.subSubcategory || '').toLowerCase().trim();
 
   // Strict Exclusion: Food products must never be classified as Job cards
-  const pFood = String(item.foodType || '').trim().toLowerCase();
   const name = String(item.name || item.title || '').trim().toLowerCase();
   const sub = String(item.subcategory || '').trim().toLowerCase();
 
-  if (pFood && ['veg', 'non-veg', 'nonveg', 'idly', 'dosa', 'meals', 'standard'].includes(pFood)) {
-    return false;
-  }
-  if (['dosa', 'idly', 'idli', 'south indian meals', 'biryani', 'parotta', 'chapati', 'poori', 'curry', 'meals'].some(k => name === k || name.includes(k) || sub === k || sub.includes(k) || subSub === k || subSub.includes(k))) {
+  const isExplicitFood = mainCat === 'food' || subCat === 'food' || cat === 'food';
+  const isFoodName = ['dosa', 'idly', 'idli', 'south indian meals', 'biryani', 'parotta', 'chapati', 'poori', 'curry', 'meals', 'naan', 'dal makhani'].some(k => name === k || name.includes(k) || sub === k || sub.includes(k) || subSub === k || subSub.includes(k));
+  if (isExplicitFood || isFoodName) {
     return false;
   }
 
@@ -3679,6 +3677,12 @@ export default function CustomerDashboard({
   const loadCustomerNotifications = useCallback(async () => {
     try {
       setIsNotificationsLoading(true);
+      const token = localStorage.getItem('connect_token') || localStorage.getItem('token') || currentUser?.token;
+      if (!currentUser || !token) {
+        setNotificationsList([]);
+        setUnreadCount(0);
+        return;
+      }
       const res = await apiFetch('/auth/customer-notifications');
       if (res && res.status === 'success' && Array.isArray(res.notifications)) {
         setNotificationsList(res.notifications);
@@ -4319,10 +4323,9 @@ export default function CustomerDashboard({
       const pSubNav = String(p.subNavbarCategory || '').trim().toLowerCase();
 
       // Strict Exclusion: Food products must NEVER enter Jobs
-      if (pFood && ['veg', 'non-veg', 'nonveg', 'idly', 'dosa', 'meals', 'standard'].includes(pFood)) {
-        return false;
-      }
-      if (['dosa', 'idly', 'idli', 'south indian meals', 'biryani', 'parotta', 'chapati', 'poori', 'curry', 'meals'].some(k => pName === k || pName.includes(k) || pSub === k || pSub.includes(k) || pChild === k || pChild.includes(k))) {
+      const isExplicitFood = pMain === 'food' || pSubNav === 'food';
+      const isFoodName = ['dosa', 'idly', 'idli', 'south indian meals', 'biryani', 'parotta', 'chapati', 'poori', 'curry', 'meals', 'naan', 'dal makhani'].some(k => pName === k || pName.includes(k) || pSub === k || pSub.includes(k) || pChild === k || pChild.includes(k));
+      if (isExplicitFood || isFoodName) {
         return false;
       }
 
@@ -6965,20 +6968,19 @@ export default function CustomerDashboard({
 
       // Jobs Filter Checks
       if (currentTab === 'jobs' || activeTab === 'Jobs') {
-        const pFood = (product.foodType || '').trim();
+        const pMainCat = normalizeMainCatName(product.subNavbarCategory);
+        const pMain = normalizeMainCatName(product.mainCategory);
+        const pCat = normalizeMainCatName(product.category);
         const pSub = (product.subcategory || '').toLowerCase();
         const pName = (product.name || '').toLowerCase();
-        if (['dosa', 'idly', 'idli', 'south indian meals', 'meals', 'biryani'].some(k => pName.includes(k) || pSub.includes(k))) {
-          return false;
-        }
-        if (pFood && ['veg', 'non-veg', 'nonveg', 'idly', 'standard'].includes(pFood.toLowerCase())) {
+
+        const isExplicitFood = pMainCat === 'food' || pMain === 'food' || pCat === 'food';
+        const isFoodName = ['dosa', 'idly', 'idli', 'south indian meals', 'meals', 'biryani', 'parotta', 'naan', 'dal makhani'].some(k => pName === k || pName.includes(k) || pSub === k || pSub.includes(k));
+        if (isExplicitFood || isFoodName) {
           return false;
         }
 
         const isJob = isJobCardItem(product);
-        const pMainCat = normalizeMainCatName(product.subNavbarCategory);
-        const pMain = normalizeMainCatName(product.mainCategory);
-        const pCat = normalizeMainCatName(product.category);
 
         const isActualJob = (pMainCat === 'jobs' || pMain === 'jobs' || pCat === 'jobs' || isJob) &&
           !['food', 'services', 'stay', 'travel', 'daily needs'].includes(normalizeMainCatName(product.subcategory));

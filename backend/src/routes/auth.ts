@@ -2203,10 +2203,10 @@ router.patch('/customer-address/:addressId/default', authenticateToken, handleSe
 router.delete('/customer-address/:addressId', authenticateToken, handleDeleteAddress);
 
 // Customer Notifications Endpoints
-router.get('/customer-notifications', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/customer-notifications', optionalAuthenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   const authUser = req.user;
   if (!authUser) {
-    return res.status(401).json({ status: 'error', code: 'UNAUTHORIZED', message: 'Authentication required.' });
+    return res.json({ status: 'success', notifications: [], unreadCount: 0 });
   }
   const requestedId = ((req.query.userId || req.query.customerId || req.query.phone || req.query.email || '') as string).trim();
   const isAdmin = authUser?.role === 'admin' || authUser?.role === 'superadmin';
