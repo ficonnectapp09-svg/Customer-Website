@@ -555,15 +555,24 @@ class DatabaseManager {
               { customerId: cleanCustId },
               { memberId: cleanCustId },
               { user_id: cleanCustId },
+              { userId: cleanCustId },
               { customer_email: cleanLower },
-              { candidateEmail: cleanLower }
+              { customerEmail: cleanLower },
+              { candidateEmail: cleanLower },
+              { email: cleanLower }
             );
 
             if (cleanDigits && cleanDigits.length >= 7) {
               orList.push(
                 { customer_phone: cleanDigits },
                 { customer_phone: `+91${cleanDigits}` },
-                { customer_phone: `91${cleanDigits}` }
+                { customer_phone: `91${cleanDigits}` },
+                { customerPhone: cleanDigits },
+                { customerPhone: `+91${cleanDigits}` },
+                { customerPhone: `91${cleanDigits}` },
+                { candidatePhone: cleanDigits },
+                { phone: cleanDigits },
+                { phone: `+91${cleanDigits}` }
               );
             }
           });
@@ -583,12 +592,16 @@ class DatabaseManager {
         idList.includes(String((o as any).customer_id || '').toLowerCase()) ||
         idList.includes(String((o as any).customerId || '').toLowerCase()) ||
         idList.includes(String((o as any).user_id || '').toLowerCase()) ||
+        idList.includes(String((o as any).userId || '').toLowerCase()) ||
         idList.includes(String(o.memberId || '').toLowerCase()) ||
         idList.includes(String(o.candidateEmail || '').toLowerCase()) ||
+        idList.includes(String((o as any).customerEmail || '').toLowerCase()) ||
         idList.includes(String(o.customer_email || '').toLowerCase()) ||
+        idList.includes(String((o as any).email || '').toLowerCase()) ||
         idList.some(id => {
           const digits = id.replace(/\D/g, '');
-          return digits.length >= 7 && String(o.customer_phone || '').replace(/\D/g, '') === digits;
+          const oDigits = String(o.customer_phone || (o as any).customerPhone || (o as any).candidatePhone || (o as any).phone || '').replace(/\D/g, '');
+          return digits.length >= 7 && oDigits.length >= 7 && (digits.endsWith(oDigits) || oDigits.endsWith(digits));
         })
       );
     }
