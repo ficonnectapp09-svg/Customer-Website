@@ -473,6 +473,9 @@ app.get(['/api/public/products', '/api/products'], async (req, res) => {
         return {
           ...p,
           id: p.id || (p._id ? p._id.toString() : ''),
+          mainCategory: (['parotta', 'biryani', 'biriyani', 'dosa', 'idli', 'idly', 'thali', 'pizza', 'burger', 'south indian meals'].some(k => ((p.name || '') + (p.subcategory || '')).toLowerCase().includes(k)) || p.foodType) && (p.mainCategory === 'Jobs' || p.category === 'Jobs') ? 'Food' : p.mainCategory,
+          subNavbarCategory: (['parotta', 'biryani', 'biriyani', 'dosa', 'idli', 'idly', 'thali', 'pizza', 'burger', 'south indian meals'].some(k => ((p.name || '') + (p.subcategory || '')).toLowerCase().includes(k)) || p.foodType) && (p.subNavbarCategory === 'Jobs') ? 'Food' : p.subNavbarCategory,
+          category: (['parotta', 'biryani', 'biriyani', 'dosa', 'idli', 'idly', 'thali', 'pizza', 'burger', 'south indian meals'].some(k => ((p.name || '') + (p.subcategory || '')).toLowerCase().includes(k)) || p.foodType) && (p.category === 'Jobs') ? 'Food' : p.category,
           imageUrl: primaryImg,
           image: primaryImg,
           images: normalizedImages,

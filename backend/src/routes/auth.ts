@@ -454,6 +454,17 @@ router.post('/login', authRateLimiter, async (req: Request, res: Response) => {
         custId = await resolveCanonicalCustomerId(mongoDb, dbUser);
       }
 
+      let userAadhaar = '';
+      if (dbUser.aadhaar) {
+        try {
+          userAadhaar = dbUser.aadhaar.startsWith('v1:')
+            ? securityManager.decryptAES256GCM(dbUser.aadhaar)
+            : dbUser.aadhaar;
+        } catch (e) {
+          userAadhaar = '';
+        }
+      }
+
       userDetails = {
         id: dbUser._id ? dbUser._id.toString() : (dbUser.id || 'cust_' + Date.now()),
         customerId: custId,
@@ -461,6 +472,8 @@ router.post('/login', authRateLimiter, async (req: Request, res: Response) => {
         name: dbUser.name || 'Connect Member',
         email: dbUser.email || identifier,
         phone: dbUser.phone || '',
+        aadhaar: userAadhaar,
+        rawAadhaar: userAadhaar,
         avatar: dbUser.avatar || dbUser.photo || '',
         photo: dbUser.avatar || dbUser.photo || '',
         role: dbUser.role || 'customer',
@@ -1619,10 +1632,11 @@ router.get('/customer-profile', optionalAuthenticateToken, async (req: Authentic
     }
 
     // Decrypt or safely mask sensitive identity documents
+    let rawAadhaar = '';
     let displayAadhaar = '';
     if (safeProfile.aadhaar) {
       try {
-        const rawAadhaar = safeProfile.aadhaar.startsWith('v1:')
+        rawAadhaar = safeProfile.aadhaar.startsWith('v1:')
           ? securityManager.decryptAES256GCM(safeProfile.aadhaar)
           : safeProfile.aadhaar;
         displayAadhaar = rawAadhaar.length >= 4 ? `XXXX-XXXX-${rawAadhaar.slice(-4)}` : rawAadhaar;
@@ -1659,7 +1673,9 @@ router.get('/customer-profile', optionalAuthenticateToken, async (req: Authentic
         role: safeProfile.role || 'customer',
         customerId: resolvedCustId,
         registrationId: resolvedCustId,
-        aadhaar: displayAadhaar,
+        aadhaar: rawAadhaar || displayAadhaar,
+        rawAadhaar: rawAadhaar,
+        displayAadhaar: displayAadhaar,
         pan: displayPan,
         membershipTier: safeProfile.membershipTier || 'None',
         membershipStatus: safeProfile.membershipStatus || (safeProfile.membershipTier && safeProfile.membershipTier !== 'None' ? 'ACTIVE' : 'INACTIVE'),

@@ -104,7 +104,7 @@ export default function SubServiceDetails({ title, onBack }) {
   const [bookingDepartment, setBookingDepartment] = useState('');
   const [bookingDoctor, setBookingDoctor] = useState('');
   const [bookingDate, setBookingDate] = useState('');
-  const [bookingTime, setBookingTime] = useState('Morning (09:00 AM - 12:00 PM)');
+  const [bookingTime, setBookingTime] = useState('');
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingError, setBookingError] = useState('');
 
@@ -332,7 +332,7 @@ export default function SubServiceDetails({ title, onBack }) {
     const firstDoc = hospital.doctors.find(doc => doc.dept === ((hospital.specialities && hospital.specialities[0]) || 'General Medicine'));
     setBookingDoctor(firstDoc ? firstDoc.name : '');
     setBookingDate('');
-    setBookingTime('Morning (09:00 AM - 12:00 PM)');
+    setBookingTime('');
     setBookingSuccess(false);
     setBookingError('');
     setBookingModalOpen(true);
@@ -350,6 +350,10 @@ export default function SubServiceDetails({ title, onBack }) {
     e.preventDefault();
     if (!bookingDate) {
       setBookingError('Please select a date for your appointment.');
+      return;
+    }
+    if (!bookingTime) {
+      setBookingError('Please select a preferred time slot for your appointment.');
       return;
     }
 
@@ -901,7 +905,7 @@ export default function SubServiceDetails({ title, onBack }) {
                     </div>
                     <div className="flex justify-between items-baseline gap-2">
                       <span className="text-[9px] uppercase tracking-wider text-slate-400">Time Slot:</span>
-                      <span className="font-bold text-blue-650 dark:text-blue-400">{bookingTime.split(' ')[0]}</span>
+                      <span className="font-bold text-blue-650 dark:text-blue-400">{bookingTime ? bookingTime.split(' ')[0] : 'Not Selected'}</span>
                     </div>
                     <div className="flex justify-between items-baseline gap-2 border-t border-slate-200/50 dark:border-slate-800/60 pt-2">
                       <span className="text-[9px] uppercase tracking-wider text-slate-400">Member Pass ID:</span>

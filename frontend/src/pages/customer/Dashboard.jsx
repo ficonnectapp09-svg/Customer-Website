@@ -820,6 +820,18 @@ export function isJobCardItem(item) {
   const mainCat = String(item.mainCategory || '').toLowerCase().trim();
   const subSub = String(item.subSubcategory || '').toLowerCase().trim();
 
+  // Strict Exclusion: Food products must never be classified as Job cards
+  const pFood = String(item.foodType || '').trim().toLowerCase();
+  const name = String(item.name || item.title || '').trim().toLowerCase();
+  const sub = String(item.subcategory || '').trim().toLowerCase();
+
+  if (pFood && ['veg', 'non-veg', 'nonveg', 'idly', 'dosa', 'meals', 'standard'].includes(pFood)) {
+    return false;
+  }
+  if (['dosa', 'idly', 'idli', 'south indian meals', 'biryani', 'parotta', 'chapati', 'poori', 'curry', 'meals'].some(k => name === k || name.includes(k) || sub === k || sub.includes(k) || subSub === k || subSub.includes(k))) {
+    return false;
+  }
+
   if (subCat === 'jobs' || subCat === 'job' || tag === 'jobs' || tag === 'job' || cat === 'jobs' || cat === 'job' || mainCat === 'jobs' || mainCat === 'job' || cat.includes('it jobs') || subSub.includes('it jobs') || item.jobTitle || item.jobLocation) {
     return true;
   }
@@ -1253,8 +1265,8 @@ export default function CustomerDashboard({
   const [isTravelFilterModalOpen, setIsTravelFilterModalOpen] = useState(false);
   const [customTimeInput, setCustomTimeInput] = useState('');
   const [customCheckOutTimeInput, setCustomCheckOutTimeInput] = useState('');
-  const [checkInTime, setCheckInTime] = useState('12:00 PM');
-  const [checkOutTime, setCheckOutTime] = useState('11:00 AM');
+  const [checkInTime, setCheckInTime] = useState('');
+  const [checkOutTime, setCheckOutTime] = useState('');
   const [adultCount, setAdultCount] = useState(1);
   const [childCount, setChildCount] = useState(0);
   const [isCardFlipped, setIsCardFlipped] = useState(false);
@@ -1440,13 +1452,6 @@ export default function CustomerDashboard({
     if (activeItem) {
       const todayYMD = formatDateYYYYMMDD(new Date());
       const isToday = stayCheckInDate === todayYMD;
-      if (isToday && isPastTimeForSelectedDate(checkInTime, stayCheckInDate)) {
-        const validSlot = checkInTimeSlots.find(s => s.status === 'Available' && !isPastTimeForSelectedDate(s.time, stayCheckInDate));
-        if (validSlot) {
-          setCheckInTime(validSlot.time);
-        }
-      }
-      setCheckOutTime('11:00 AM');
       setAdultCount(1);
       setChildCount(0);
       setCustomTimeInput('');
@@ -1514,19 +1519,19 @@ export default function CustomerDashboard({
   const [currentYear, setCurrentYear] = useState(todayObj.getFullYear());
   const [selectedModalDay, setSelectedModalDay] = useState(todayObj.getDate());
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  const [stayCheckInDate, setStayCheckInDate] = useState(() => formatDateYYYYMMDD(todayObj));
-  const [stayCheckOutDate, setStayCheckOutDate] = useState(() => formatDateYYYYMMDD(tomorrowObj));
+  const [stayCheckInDate, setStayCheckInDate] = useState('');
+  const [stayCheckOutDate, setStayCheckOutDate] = useState('');
   const [activeDateTab, setActiveDateTab] = useState('checkIn'); // 'checkIn' | 'checkOut'
 
   useEffect(() => {
-    if (stayCheckInDate && (!stayCheckOutDate || stayCheckOutDate <= stayCheckInDate)) {
+    if (stayCheckInDate && stayCheckOutDate && stayCheckOutDate <= stayCheckInDate) {
       const inD = new Date(stayCheckInDate + 'T00:00:00');
       if (!isNaN(inD.getTime())) {
         inD.setDate(inD.getDate() + 1);
         setStayCheckOutDate(formatDateYYYYMMDD(inD));
       }
     }
-  }, [stayCheckInDate]);
+  }, [stayCheckInDate, stayCheckOutDate]);
 
 
 
@@ -1605,7 +1610,7 @@ export default function CustomerDashboard({
       if (activeTab) {
         localStorage.setItem('connect_active_tab', activeTab);
       }
-      setSidebarActiveCat('ALL');
+      setSidebarActiveCat('ALL'); setSelectedCategories([]);
       setSelectedRating(null);
       setSelectedCuisines([]);
       setSelectedDistances([]);
@@ -1842,6 +1847,9 @@ export default function CustomerDashboard({
   const [profilePhoto, setProfilePhoto] = useState(() => {
     return currentUser?.avatar || currentUser?.photo || '';
   });
+  const [profileAadhaar, setProfileAadhaar] = useState(() => {
+    return currentUser?.aadhaar || currentUser?.aadhaarNumber || currentUser?.rawAadhaar || '';
+  });
 
   const activeCustomerId = useMemo(() => {
     if (!currentUser) return '';
@@ -1927,6 +1935,7 @@ export default function CustomerDashboard({
               if (dbUser.email) setProfileEmail(dbUser.email);
               if (dbUser.phone) setProfilePhone(dbUser.phone);
               if (dbUser.avatar || dbUser.photo) setProfilePhoto(dbUser.avatar || dbUser.photo);
+              if (dbUser.aadhaar || dbUser.rawAadhaar) setProfileAadhaar(dbUser.rawAadhaar || dbUser.aadhaar);
               if (Array.isArray(dbUser.addresses)) setAddresses(deduplicateAddresses(dbUser.addresses));
 
               if (dbUser.membershipTier !== undefined) {
@@ -2019,6 +2028,7 @@ export default function CustomerDashboard({
       setProfileName(resolveCustomerName(currentUser.name, '', currentUser.email));
       setProfileEmail(currentUser.email && !currentUser.email.match(/^\d+@connect\.app$/) ? currentUser.email : '');
       setProfilePhoto(currentUser.avatar || currentUser.photo || '');
+      setProfileAadhaar(currentUser.aadhaar || currentUser.rawAadhaar || currentUser.aadhaarNumber || '');
       const raw = currentUser.phone || '';
       const clean = raw.replace(/\D/g, '');
       if (clean.length >= 10 && clean !== String(currentUser.pincode)) {
@@ -2036,6 +2046,7 @@ export default function CustomerDashboard({
       setProfileEmail('');
       setProfilePhone('');
       setProfilePhoto('');
+      setProfileAadhaar('');
       setAddresses([]);
       setIsProfileModalOpen(false);
       setCustomerOrders([]);
@@ -2051,6 +2062,7 @@ export default function CustomerDashboard({
     setProfileEmail('');
     setProfilePhone('');
     setProfilePhoto('');
+    setProfileAadhaar('');
     setAddresses([]);
     setActiveProfileTab('orders');
     if (typeof onLogOut === 'function') {
@@ -2307,7 +2319,7 @@ export default function CustomerDashboard({
             ? ((profileName || currentUser?.name || 'Primary Guest').replace(/[^a-zA-Z\s]/g, '').trim() || 'Primary Guest')
             : (isChild ? `Child Guest ${i - numAdults + 1}` : `Adult Guest ${i + 1}`),
           phone: (profilePhone || currentUser?.phone || '9876543210').replace(/\D/g, '').slice(-10),
-          aadhaar: isChild ? undefined : '123456789012'
+          aadhaar: isChild ? undefined : (i === 0 ? (profileAadhaar || currentUser?.aadhaar || currentUser?.rawAadhaar || '') : '')
         };
       });
 
@@ -2505,13 +2517,28 @@ export default function CustomerDashboard({
         const copy = Array.isArray(prev) && prev.length > 0 ? [...prev] : [{ name: '', aadhaar: '', phone: '' }];
         copy[0] = {
           name: copy[0]?.name || profileName || currentUser?.name || '',
-          aadhaar: copy[0]?.aadhaar || currentUser?.aadhaarNumber || currentUser?.aadhaar || '',
+          aadhaar: copy[0]?.aadhaar || profileAadhaar || currentUser?.aadhaarNumber || currentUser?.aadhaar || currentUser?.rawAadhaar || '',
           phone: copy[0]?.phone || (profilePhone || currentUser?.phone || '').replace(/\D/g, '').slice(-10)
         };
         return copy;
       });
     }
-  }, [activeScheduleModalItem, activeBookNowModalItem, profileName, profilePhone, currentUser]);
+  }, [activeScheduleModalItem, activeBookNowModalItem, profileName, profilePhone, profileAadhaar, currentUser]);
+
+  useEffect(() => {
+    const savedAadhaar = profileAadhaar || currentUser?.aadhaar || currentUser?.rawAadhaar || currentUser?.aadhaarNumber || '';
+    if (savedAadhaar) {
+      setGuestList(prev => {
+        if (!Array.isArray(prev) || prev.length === 0) return prev;
+        if (!prev[0]?.aadhaar) {
+          const updated = [...prev];
+          updated[0] = { ...updated[0], aadhaar: savedAadhaar };
+          return updated;
+        }
+        return prev;
+      });
+    }
+  }, [profileAadhaar, currentUser]);
   const [deletedProductIds, setDeletedProductIds] = useState(() => {
     try {
       const saved = localStorage.getItem('connect_deleted_product_ids');
@@ -4134,7 +4161,7 @@ export default function CustomerDashboard({
     enterTimeoutRef.current = setTimeout(() => {
       setHoveredLink(linkName);
       setActiveMegaCategory('ALL');
-      setSidebarActiveCat('ALL');
+      setSidebarActiveCat('ALL'); setSelectedCategories([]);
     }, 120); // 120ms responsive hover
   };
 
@@ -4281,7 +4308,36 @@ export default function CustomerDashboard({
 
   const jobsList = [
     ...staticJobsList,
-    ...products.filter(p => isJobCardItem(p) || p.subNavbarCategory === 'Jobs' || p.mainCategory === 'Jobs' || p.tag === 'Jobs' || p.category === 'Jobs' || (p.category || '').toLowerCase().includes('job')).map(p => {
+    ...products.filter(p => {
+      if (!p) return false;
+      const pFood = String(p.foodType || '').trim().toLowerCase();
+      const pSub = String(p.subcategory || '').trim().toLowerCase();
+      const pChild = String(p.subSubcategory || '').trim().toLowerCase();
+      const pName = String(p.name || p.title || '').trim().toLowerCase();
+      const pCat = String(p.category || '').trim().toLowerCase();
+      const pMain = String(p.mainCategory || '').trim().toLowerCase();
+      const pSubNav = String(p.subNavbarCategory || '').trim().toLowerCase();
+
+      // Strict Exclusion: Food products must NEVER enter Jobs
+      if (pFood && ['veg', 'non-veg', 'nonveg', 'idly', 'dosa', 'meals', 'standard'].includes(pFood)) {
+        return false;
+      }
+      if (['dosa', 'idly', 'idli', 'south indian meals', 'biryani', 'parotta', 'chapati', 'poori', 'curry', 'meals'].some(k => pName === k || pName.includes(k) || pSub === k || pSub.includes(k) || pChild === k || pChild.includes(k))) {
+        return false;
+      }
+
+      // Valid job category taxonomy from dbCategories or explicit job identifiers
+      const isJobsTaxonomy = (
+        pCat === 'it' || pCat === 'non-it' || pSub === 'it' || pSub === 'non-it' ||
+        ['data analyst', 'full stack developer', 'data associate', 'system administrator'].some(j => pSub === j || pChild === j || pName.toLowerCase() === j)
+      );
+
+      const isJobListing = (isJobCardItem(p) || pSubNav === 'jobs' || pMain === 'jobs' || pCat === 'jobs') &&
+        !['food', 'services', 'stay', 'travel', 'daily needs'].includes(normalizeMainCatName(p.subcategory)) &&
+        !['food', 'services', 'stay', 'travel', 'daily needs'].includes(normalizeMainCatName(p.category));
+
+      return isJobsTaxonomy || (isJobListing && (p.jobTitle || p.jobLocation || p.salary || p.experienceRequired || p.qualification || isJobsTaxonomy));
+    }).map(p => {
       const vendorJobType = p.jobType || p.type || p.job_type || p.employmentType || p.workType;
       const vendorExp = p.experience || p.exp || p.jobExperience || p.experience_required || p.experienceRequired || p.minExperience;
       const vendorDept = p.department || p.category || p.jobCategory || p.specialization || p.subCategory;
@@ -5328,7 +5384,7 @@ export default function CustomerDashboard({
                 ? (resolvedCustomerName.replace(/[^a-zA-Z\s]/g, '').trim() || 'Primary Guest')
                 : (isChild ? `Child Guest ${idx - reqAdults + 1}` : `Adult Guest ${idx + 1}`),
               phone: resolvedCustomerPhone,
-              aadhaar: isChild ? '' : '123456789012'
+              aadhaar: isChild ? '' : (idx === 0 ? (profileAadhaar || currentUser?.aadhaar || currentUser?.rawAadhaar || '') : '')
             });
           }
           finalGuestDetails = list.slice(0, totalGuests).map((g, idx) => {
@@ -5338,9 +5394,6 @@ export default function CustomerDashboard({
               : (isChild ? `Child Guest ${idx - reqAdults + 1}` : `Adult Guest ${idx + 1}`);
             const cleanName = (g.name || fallbackName).replace(/[^a-zA-Z\s]/g, '').trim() || 'Guest';
             let cleanAadhaar = String(g.aadhaar || '').replace(/\D/g, '');
-            if (!isChild && cleanAadhaar.length !== 12) {
-              cleanAadhaar = '123456789012';
-            }
             return {
               ...g,
               name: cleanName,
@@ -6910,6 +6963,44 @@ export default function CustomerDashboard({
         return matchesSearch && matchesSubNavbar && matchesLocation && matchesDailyNeedsType && matchesPrice && matchesRatingFilter;
       }
 
+      // Jobs Filter Checks
+      if (currentTab === 'jobs' || activeTab === 'Jobs') {
+        const pFood = (product.foodType || '').trim();
+        const pSub = (product.subcategory || '').toLowerCase();
+        const pName = (product.name || '').toLowerCase();
+        if (['dosa', 'idly', 'idli', 'south indian meals', 'meals', 'biryani'].some(k => pName.includes(k) || pSub.includes(k))) {
+          return false;
+        }
+        if (pFood && ['veg', 'non-veg', 'nonveg', 'idly', 'standard'].includes(pFood.toLowerCase())) {
+          return false;
+        }
+
+        const isJob = isJobCardItem(product);
+        const pMainCat = normalizeMainCatName(product.subNavbarCategory);
+        const pMain = normalizeMainCatName(product.mainCategory);
+        const pCat = normalizeMainCatName(product.category);
+
+        const isActualJob = (pMainCat === 'jobs' || pMain === 'jobs' || pCat === 'jobs' || isJob) &&
+          !['food', 'services', 'stay', 'travel', 'daily needs'].includes(normalizeMainCatName(product.subcategory));
+
+        if (!isActualJob) return false;
+
+        const matchesDept = selectedJobDepts.length === 0 ||
+          selectedJobDepts.some(d => 
+            (product.department || product.category || product.subcategory || '').toLowerCase().includes(d.toLowerCase())
+          );
+
+        const matchesType = selectedJobTypes.length === 0 ||
+          selectedJobTypes.some(t => {
+            const typeLower = t.toLowerCase();
+            const jobTypeLower = (product.jobType || product.type || '').toLowerCase();
+            const jobLocLower = (product.jobLocation || product.location || '').toLowerCase();
+            return jobTypeLower.includes(typeLower) || jobLocLower.includes(typeLower);
+          });
+
+        return matchesSearch && matchesSubNavbar && matchesLocation && matchesDept && matchesType;
+      }
+
       // Default Products / Other tabs Filter Checks
       const isJob = isJobCardItem(product);
       if (currentTab === 'products' || activeTab === 'Products') {
@@ -7118,7 +7209,7 @@ export default function CustomerDashboard({
             setActiveTab('Home');
             setSelectedProduct(null);
             setSelectedSubNavbarCategory('All');
-            setSidebarActiveCat('ALL');
+            setSidebarActiveCat('ALL'); setSelectedCategories([]);
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}>
             <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white flex items-center justify-center p-0.5 border border-slate-200 dark:border-slate-800/60 shrink-0 shadow-3xs">
@@ -7726,7 +7817,7 @@ export default function CustomerDashboard({
               <button
                 type="button"
                 onClick={() => {
-                  setSidebarActiveCat('ALL');
+                  setSidebarActiveCat('ALL'); setSelectedCategories([]);
                   setActiveTab(currentMainCategory);
                   setSelectedSubNavbarCategory(currentMainCategory);
                   setSelectedCategories([]);
@@ -7751,7 +7842,7 @@ export default function CustomerDashboard({
                   }, 100);
                 }}
                 onMouseEnter={() => {
-                  setSidebarActiveCat('ALL');
+                  setSidebarActiveCat('ALL'); setSelectedCategories([]);
                 }}
                 className={`w-full text-left py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer border-none flex items-center justify-between group/cat shrink-0 select-none ${
                   activeSubCat === 'ALL'
@@ -8839,7 +8930,7 @@ export default function CustomerDashboard({
                   const targetTab = cat.id === 'More' ? 'Services' : cat.id;
                   setActiveTab(targetTab);
                   setSelectedSubNavbarCategory(targetTab);
-                  setSidebarActiveCat('ALL');
+                  setSidebarActiveCat('ALL'); setSelectedCategories([]);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
                 className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-3xl p-4 text-center flex flex-col items-center justify-center transition-all duration-300 shadow-3xs hover:shadow-md hover:-translate-y-1 cursor-pointer"
@@ -9911,7 +10002,7 @@ export default function CustomerDashboard({
                   setSortBy('popularity');
                   setSelectedBusType('');
                   setSelectedBusClass('');
-                  setSidebarActiveCat('ALL');
+                  setSidebarActiveCat('ALL'); setSelectedCategories([]);
                   setSelectedSubNavbarCategory('Travel');
                   setSelectedCategories([]);
                 }}
@@ -16143,7 +16234,7 @@ wishlistProducts.forEach(item => addToCart(item));
                             <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-ping" /> {isTravelItem ? 'Departure Details' : isStayItem ? 'Check-In Details' : 'Appointment Details'}
                           </span>
                           <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 bg-blue-100/60 dark:bg-blue-950/50 px-2.5 py-0.5 rounded-full">
-                            {formatDateFromYYYYMMDD(stayCheckInDate)} | {checkInTime}
+                            {(stayCheckInDate ? formatDateFromYYYYMMDD(stayCheckInDate) : (isStayItem ? 'Select Check-in Date' : isTravelItem ? 'Select Travel Date' : 'Select Appointment Date')) + ' | ' + (checkInTime || (isStayItem ? 'Select Check-in Time' : isTravelItem ? 'Select Travel Time' : 'Select Appointment Time'))}
                           </span>
                         </div>
 
@@ -16151,17 +16242,14 @@ wishlistProducts.forEach(item => addToCart(item));
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                           <BookingDateInput
                             label={isTravelItem ? 'Travel Date' : isStayItem ? 'Check-In Date' : 'Appointment Date'}
+                            placeholder={isStayItem ? 'Select Check-in Date' : isTravelItem ? 'Select Travel Date' : 'Select Appointment Date'}
                             value={stayCheckInDate}
                             minDate={formatDateYYYYMMDD(todayObj)}
                             unavailableDates={activeScheduleModalItem?.unavailableDates}
                             blockedDates={activeScheduleModalItem?.blockedDates}
                             onChange={(selectedDateStr) => {
                               setStayCheckInDate(selectedDateStr);
-                              if (selectedDateStr === formatDateYYYYMMDD(todayObj) && isPastTimeForSelectedDate(checkInTime, selectedDateStr)) {
-                                const validSlot = checkInTimeSlots.find(s => s.status === 'Available' && !isPastTimeForSelectedDate(s.time, selectedDateStr));
-                                if (validSlot) setCheckInTime(validSlot.time);
-                              }
-                              if (stayCheckOutDate <= selectedDateStr) {
+                              if (stayCheckOutDate && stayCheckOutDate <= selectedDateStr) {
                                 const next = new Date(selectedDateStr + 'T00:00:00');
                                 next.setDate(next.getDate() + 1);
                                 setStayCheckOutDate(formatDateYYYYMMDD(next));
@@ -16171,6 +16259,7 @@ wishlistProducts.forEach(item => addToCart(item));
 
                           <BookingTimeInput
                             label={isTravelItem ? 'Travel Time' : isStayItem ? 'Check-In Time' : 'Appointment Time'}
+                            placeholder={isStayItem ? 'Select Check-in Time' : isTravelItem ? 'Select Travel Time' : 'Select Appointment Time'}
                             value={checkInTime}
                             availableSlots={checkInTimeSlots}
                             selectedDate={stayCheckInDate}
@@ -16257,13 +16346,14 @@ wishlistProducts.forEach(item => addToCart(item));
                               <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-ping" /> Check-Out Details
                             </span>
                             <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-100/60 dark:bg-emerald-950/50 px-2.5 py-0.5 rounded-full">
-                              {formatDateFromYYYYMMDD(stayCheckOutDate)} | {checkOutTime}
+                              {(stayCheckOutDate ? formatDateFromYYYYMMDD(stayCheckOutDate) : 'Select Check-out Date') + ' | ' + (checkOutTime || 'Select Check-out Time')}
                             </span>
                           </div>
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                             <BookingDateInput
                               label="Check-Out Date"
+                              placeholder="Select Check-out Date"
                               value={stayCheckOutDate}
                               minDate={(() => {
                                 if (!stayCheckInDate) return formatDateYYYYMMDD(tomorrowObj);
@@ -16279,6 +16369,7 @@ wishlistProducts.forEach(item => addToCart(item));
 
                             <BookingTimeInput
                               label="Check-Out Time"
+                              placeholder="Select Check-out Time"
                               value={checkOutTime}
                               availableSlots={['11:00 AM', '12:00 PM', '01:00 PM', '02:00 PM', '06:00 PM']}
                               accentColor="emerald"
@@ -16697,21 +16788,48 @@ wishlistProducts.forEach(item => addToCart(item));
 
                   <button
                     onClick={() => {
-                      if (!stayCheckInDate) {
-                        triggerNotification("Please select a required date.", "error");
-                        return;
-                      }
-                      if (!checkInTime) {
-                        triggerNotification("Please select a required time slot.", "error");
-                        return;
+                      if (isStayItem) {
+                        if (!stayCheckInDate) {
+                          triggerNotification("Please select Check-in Date.", "error");
+                          return;
+                        }
+                        if (!checkInTime) {
+                          triggerNotification("Please select Check-in Time.", "error");
+                          return;
+                        }
+                        if (!stayCheckOutDate) {
+                          triggerNotification("Please select Check-out Date.", "error");
+                          return;
+                        }
+                        if (!checkOutTime) {
+                          triggerNotification("Please select Check-out Time.", "error");
+                          return;
+                        }
+                        if (stayCheckOutDate <= stayCheckInDate) {
+                          triggerNotification("Check-Out Date must be after Check-In Date.", "error");
+                          return;
+                        }
+                      } else if (isTravelItem) {
+                        if (!stayCheckInDate) {
+                          triggerNotification("Please select Travel Date.", "error");
+                          return;
+                        }
+                        if (!checkInTime) {
+                          triggerNotification("Please select Travel Time.", "error");
+                          return;
+                        }
+                      } else {
+                        if (!stayCheckInDate) {
+                          triggerNotification("Please select Appointment Date.", "error");
+                          return;
+                        }
+                        if (!checkInTime) {
+                          triggerNotification("Please select Appointment Time.", "error");
+                          return;
+                        }
                       }
                       if (isPastTimeForSelectedDate(checkInTime, stayCheckInDate)) {
                         triggerNotification("Selected time slot is in the past. Please select an upcoming time slot.", "error");
-                        return;
-                      }
-                      const matchedSlot = checkInTimeSlots.find(s => s.time === checkInTime);
-                      if (matchedSlot && matchedSlot.status !== 'Available') {
-                        triggerNotification(`The selected time slot (${checkInTime}) is ${matchedSlot.status || 'not available'}. Please select an available slot.`, "error");
                         return;
                       }
                       if (isStayItem || isTravelItem) {
@@ -16952,7 +17070,7 @@ wishlistProducts.forEach(item => addToCart(item));
                             <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-ping" /> {isTravelItem ? 'Departure Details' : isStayItem ? 'Check-In Details' : 'Appointment Details'}
                           </span>
                           <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 bg-blue-100/60 dark:bg-blue-950/50 px-2.5 py-0.5 rounded-full">
-                            {formatDateFromYYYYMMDD(stayCheckInDate)} | {checkInTime}
+                            {(stayCheckInDate ? formatDateFromYYYYMMDD(stayCheckInDate) : (isStayItem ? 'Select Check-in Date' : isTravelItem ? 'Select Travel Date' : 'Select Appointment Date')) + ' | ' + (checkInTime || (isStayItem ? 'Select Check-in Time' : isTravelItem ? 'Select Travel Time' : 'Select Appointment Time'))}
                           </span>
                         </div>
 
@@ -16960,17 +17078,14 @@ wishlistProducts.forEach(item => addToCart(item));
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                           <BookingDateInput
                             label={isTravelItem ? 'Travel Date' : isStayItem ? 'Check-In Date' : 'Appointment Date'}
+                            placeholder={isStayItem ? 'Select Check-in Date' : isTravelItem ? 'Select Travel Date' : 'Select Appointment Date'}
                             value={stayCheckInDate}
                             minDate={formatDateYYYYMMDD(todayObj)}
                             unavailableDates={activeBookNowModalItem?.unavailableDates}
                             blockedDates={activeBookNowModalItem?.blockedDates}
                             onChange={(selectedDateStr) => {
                               setStayCheckInDate(selectedDateStr);
-                              if (selectedDateStr === formatDateYYYYMMDD(todayObj) && isPastTimeForSelectedDate(checkInTime, selectedDateStr)) {
-                                const validSlot = checkInTimeSlots.find(s => s.status === 'Available' && !isPastTimeForSelectedDate(s.time, selectedDateStr));
-                                if (validSlot) setCheckInTime(validSlot.time);
-                              }
-                              if (stayCheckOutDate <= selectedDateStr) {
+                              if (stayCheckOutDate && stayCheckOutDate <= selectedDateStr) {
                                 const next = new Date(selectedDateStr + 'T00:00:00');
                                 next.setDate(next.getDate() + 1);
                                 setStayCheckOutDate(formatDateYYYYMMDD(next));
@@ -16980,6 +17095,7 @@ wishlistProducts.forEach(item => addToCart(item));
 
                           <BookingTimeInput
                             label={isTravelItem ? 'Travel Time' : isStayItem ? 'Check-In Time' : 'Appointment Time'}
+                            placeholder={isStayItem ? 'Select Check-in Time' : isTravelItem ? 'Select Travel Time' : 'Select Appointment Time'}
                             value={checkInTime}
                             availableSlots={checkInTimeSlots}
                             selectedDate={stayCheckInDate}
@@ -17066,13 +17182,14 @@ wishlistProducts.forEach(item => addToCart(item));
                               <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-ping" /> Check-Out Details
                             </span>
                             <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-100/60 dark:bg-emerald-950/50 px-2.5 py-0.5 rounded-full">
-                              {formatDateFromYYYYMMDD(stayCheckOutDate)} | {checkOutTime}
+                              {(stayCheckOutDate ? formatDateFromYYYYMMDD(stayCheckOutDate) : 'Select Check-out Date') + ' | ' + (checkOutTime || 'Select Check-out Time')}
                             </span>
                           </div>
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                             <BookingDateInput
                               label="Check-Out Date"
+                              placeholder="Select Check-out Date"
                               value={stayCheckOutDate}
                               minDate={(() => {
                                 if (!stayCheckInDate) return formatDateYYYYMMDD(tomorrowObj);
@@ -17088,6 +17205,7 @@ wishlistProducts.forEach(item => addToCart(item));
 
                             <BookingTimeInput
                               label="Check-Out Time"
+                              placeholder="Select Check-out Time"
                               value={checkOutTime}
                               availableSlots={['11:00 AM', '12:00 PM', '01:00 PM', '02:00 PM', '06:00 PM']}
                               accentColor="emerald"
@@ -17489,21 +17607,48 @@ wishlistProducts.forEach(item => addToCart(item));
                   <div className="mt-6 space-y-3">
                     <button
                       onClick={() => {
-                        if (!stayCheckInDate) {
-                          triggerNotification("Please select a required date.", "error");
-                          return;
-                        }
-                        if (!checkInTime) {
-                          triggerNotification("Please select a required time slot.", "error");
-                          return;
+                        if (isStayItem) {
+                          if (!stayCheckInDate) {
+                            triggerNotification("Please select Check-in Date.", "error");
+                            return;
+                          }
+                          if (!checkInTime) {
+                            triggerNotification("Please select Check-in Time.", "error");
+                            return;
+                          }
+                          if (!stayCheckOutDate) {
+                            triggerNotification("Please select Check-out Date.", "error");
+                            return;
+                          }
+                          if (!checkOutTime) {
+                            triggerNotification("Please select Check-out Time.", "error");
+                            return;
+                          }
+                          if (stayCheckOutDate <= stayCheckInDate) {
+                            triggerNotification("Check-Out Date must be after Check-In Date.", "error");
+                            return;
+                          }
+                        } else if (isTravelItem) {
+                          if (!stayCheckInDate) {
+                            triggerNotification("Please select Travel Date.", "error");
+                            return;
+                          }
+                          if (!checkInTime) {
+                            triggerNotification("Please select Travel Time.", "error");
+                            return;
+                          }
+                        } else {
+                          if (!stayCheckInDate) {
+                            triggerNotification("Please select Appointment Date.", "error");
+                            return;
+                          }
+                          if (!checkInTime) {
+                            triggerNotification("Please select Appointment Time.", "error");
+                            return;
+                          }
                         }
                         if (isPastTimeForSelectedDate(checkInTime, stayCheckInDate)) {
                           triggerNotification("Selected time slot is in the past. Please select an upcoming time slot.", "error");
-                          return;
-                        }
-                        const matchedSlot = checkInTimeSlots.find(s => s.time === checkInTime);
-                        if (matchedSlot && matchedSlot.status !== 'Available') {
-                          triggerNotification(`The selected time slot (${checkInTime}) is ${matchedSlot.status || 'not available'}. Please select an available slot.`, "error");
                           return;
                         }
                         if (isStayItem || isTravelItem) {

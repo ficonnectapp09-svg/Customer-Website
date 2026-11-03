@@ -38,6 +38,7 @@ export function BookingDateInput({
   blockedDates = [],
   unavailableDates = [],
   accentColor = 'blue',
+  placeholder = 'Select Date...',
   className = ''
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -186,7 +187,7 @@ export function BookingDateInput({
           readOnly
           value={displayDate}
           onClick={() => setIsOpen(!isOpen)}
-          placeholder="Select Date..."
+          placeholder={placeholder || 'Select Date...'}
           className={`w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl py-2.5 pl-3.5 pr-10 text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer transition-all hover:border-slate-300 dark:hover:border-slate-700 focus:outline-none ${accentClasses.ring} ${
             isOpen ? (isEmerald ? 'ring-2 ring-emerald-500/20 border-emerald-500' : 'ring-2 ring-blue-500/20 border-blue-500') : ''
           }`}
@@ -339,6 +340,7 @@ export function BookingTimeInput({
   selectedDate,
   isPastTimeFn,
   accentColor = 'blue',
+  placeholder = 'Select Time...',
   className = ''
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -437,7 +439,7 @@ export function BookingTimeInput({
           readOnly
           value={value}
           onClick={() => setIsOpen(!isOpen)}
-          placeholder="Select time slot (e.g. 10:00 AM)"
+          placeholder={placeholder || 'Select Time...'}
           className={`w-full bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl py-2.5 pl-3.5 pr-10 text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer transition-all hover:border-slate-300 dark:hover:border-slate-700 focus:outline-none select-none ${accentClasses.ring} ${
             isOpen ? (isEmerald ? 'ring-2 ring-emerald-500/20 border-emerald-500' : 'ring-2 ring-blue-500/20 border-blue-500') : ''
           }`}
@@ -481,43 +483,8 @@ export function BookingTimeInput({
 
             {/* Scrollable Content Container */}
             <div className="overflow-y-auto min-h-0 flex-1 scrollbar-thin pr-0.5 space-y-3">
-              {/* Quick Predefined Time Slots */}
+              {/* Time Selector (Hours : Minutes : AM/PM) */}
               <div>
-                <span className="text-[10px] font-black uppercase text-slate-400 block mb-1.5">
-                  Available Slots
-                </span>
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 max-h-36 overflow-y-auto scrollbar-thin pr-1">
-                  {slotsList.map((slot) => {
-                    const isSelected = value === slot.time;
-                    const isPast = isPastTimeFn && selectedDate ? isPastTimeFn(slot.time, selectedDate) : false;
-                    const isAvail = slot.status === 'Available' && !isPast;
-
-                    return (
-                      <button
-                        key={slot.time}
-                        type="button"
-                        disabled={!isAvail}
-                        onClick={() => {
-                          onChange?.(slot.time);
-                          setIsOpen(false);
-                        }}
-                        className={`py-1.5 px-1 rounded-xl text-xs font-bold border transition-all flex items-center justify-center border-none cursor-pointer ${
-                          isSelected
-                            ? accentClasses.selectedBg
-                            : !isAvail
-                            ? 'bg-slate-100 dark:bg-slate-800/60 text-slate-400 border-slate-200 opacity-40 cursor-not-allowed line-through'
-                            : `bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 ${accentClasses.hoverChip}`
-                        }`}
-                      >
-                        {slot.time}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Custom Time Selector (Hours : Minutes : AM/PM) */}
-              <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800/80">
                 <span className="text-[10px] font-black uppercase text-slate-400 block mb-2">
                   Custom Time Entry
                 </span>

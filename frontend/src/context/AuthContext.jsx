@@ -200,6 +200,8 @@ export function AuthProvider({ children }) {
       name: finalName,
       email: inputUser.email || (validMobile ? `${validMobile}@connect.app` : 'customer@connect.app'),
       phone: validMobile,
+      aadhaar: inputUser.aadhaar || inputUser.aadhaarNumber || inputUser.rawAadhaar || '',
+      rawAadhaar: inputUser.rawAadhaar || inputUser.aadhaar || inputUser.aadhaarNumber || '',
       avatar: inputUser.avatar || inputUser.photo || '',
       photo: inputUser.avatar || inputUser.photo || '',
       address: inputUser.address || '',

@@ -6,6 +6,7 @@ import { ObjectId } from 'mongodb';
 import Razorpay from 'razorpay';
 import { eventPublisher, RealtimeEntities, RealtimeActions } from '../realtime';
 import { fcmPushService } from '../services/fcmPushService';
+import { securityManager } from '../security/securityManager';
 import { authenticateToken, optionalAuthenticateToken, AuthenticatedRequest, paymentRateLimiter, enforceRoleAndApproval } from '../security/middleware';
 const router = Router();
 
@@ -1160,7 +1161,30 @@ router.post('/', optionalAuthenticateToken, async (req: AuthenticatedRequest, re
             });
           }
         } else {
-          if (!g.aadhaar || !/^\d{12}$/.test(String(g.aadhaar).trim())) {
+          let guestAadhaar = String(g.aadhaar || '').trim();
+          if (i === 0 && (!guestAadhaar || guestAadhaar.includes('X') || guestAadhaar.length !== 12)) {
+            const mongoDb = db.getDb();
+            const authUserId = req.user?.id || req.user?._id || req.user?.customerId;
+            if (mongoDb && authUserId) {
+              let custQuery: any[] = [{ id: authUserId }, { customerId: authUserId }, { registrationId: authUserId }];
+              try {
+                if (ObjectId.isValid(authUserId)) custQuery.push({ _id: new ObjectId(authUserId) });
+              } catch (e) {}
+              const custDoc = await mongoDb.collection('users').findOne({ $or: custQuery }).catch(() => null);
+              if (custDoc?.aadhaar) {
+                try {
+                  const decrypted = custDoc.aadhaar.startsWith('v1:')
+                    ? securityManager.decryptAES256GCM(custDoc.aadhaar)
+                    : custDoc.aadhaar;
+                  if (/^\d{12}$/.test(decrypted)) {
+                    guestAadhaar = decrypted;
+                    g.aadhaar = decrypted;
+                  }
+                } catch (e) {}
+              }
+            }
+          }
+          if (!guestAadhaar || !/^\d{12}$/.test(guestAadhaar)) {
             return res.status(400).json({
               status: 'error',
               message: `Guest ${i + 1} requires a valid 12-digit Aadhaar number.`

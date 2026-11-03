@@ -89,6 +89,18 @@ const inferSubNavbarCategory = (p) => {
     return null;
   };
 
+  // Disambiguation: Food records must never be classified as Jobs
+  const isFoodCandidate = Boolean(
+    p.foodType ||
+    (p.businessType && String(p.businessType).toLowerCase() === 'food') ||
+    ['parotta', 'biryani', 'biriyani', 'dosa', 'idli', 'idly', 'thali', 'pizza', 'burger', 'fast food', 'south indian', 'north indian', 'meals', 'south indian meals'].some(k => 
+      rawName.toLowerCase().includes(k) || rawSubCat.toLowerCase().includes(k) || rawSubSubCat.toLowerCase().includes(k)
+    )
+  );
+  if (isFoodCandidate && (matchMainCat(rawSubCat) === 'Food' || matchMainCat(rawSubSubCat) === 'Food' || matchMainCat(rawName) === 'Food' || p.foodType)) {
+    return 'Food';
+  }
+
   // 1. Check explicit fields first
   const subNavMatch = matchMainCat(rawSubNav);
   if (subNavMatch) return subNavMatch;
@@ -112,7 +124,7 @@ const inferSubNavbarCategory = (p) => {
   if (typeMatch) return typeMatch;
 
   // 2. Check for Jobs specific indicators (jobTitle, jobLocation, salary)
-  if (p.jobTitle || p.jobLocation || p.experienceRequired || p.minExperience) {
+  if (!isFoodCandidate && (p.jobTitle || p.jobLocation || p.experienceRequired || p.minExperience)) {
     return 'Jobs';
   }
 

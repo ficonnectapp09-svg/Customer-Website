@@ -15,6 +15,7 @@ const mongodb_1 = require("mongodb");
 const razorpay_1 = __importDefault(require("razorpay"));
 const realtime_1 = require("../realtime");
 const fcmPushService_1 = require("../services/fcmPushService");
+const securityManager_1 = require("../security/securityManager");
 const middleware_1 = require("../security/middleware");
 const router = (0, express_1.Router)();
 function extractVendorTravelPoints(item) {
@@ -620,7 +621,7 @@ async function forwardOrderToVendorBackend(order, syncPayload) {
     }
 }
 // POST: /api/orders
-router.post('/', async (req, res) => {
+router.post('/', middleware_1.optionalAuthenticateToken, async (req, res) => {
     let { vendor_id, customer_id, customerId, customer_email, customer_name, customer_phone, customer_address, product_details, amount, customer_latitude, customer_longitude, type, appointmentDate, appointmentTimeSlot, doctorName, tableNumber, roomNumber, prescriptionUrl, candidateEmail, candidateResume, items, experience, candidateEducation, memberId, boardingPoint, droppingPoint, adults, children, guestDetails, checkInDate, checkInTime, checkOutDate, checkOutTime, guestList, vehicleDetails, roomsCount, nightsCount, specialRequests, paymentMethod, payment_method, paymentStatus, payment_status, transactionId, paidAt, paymentId } = req.body;
     // Upload candidate resume to AWS S3 if provided as base64 data URI
     if (candidateResume && typeof candidateResume === 'string' && candidateResume.startsWith('data:')) {
@@ -779,14 +780,69 @@ router.post('/', async (req, res) => {
                     message: 'This vendor is currently suspended and cannot receive new orders or bookings.'
                 });
             }
+            // Check Store Availability (Store Open / Store Closed Order Control)
+            if (mongoDb) {
+                try {
+                    const vIdStr = String(vendor_id).trim();
+                    const orConditions = [
+                        { vendorId: vIdStr },
+                        { registrationId: vIdStr },
+                        { regId: vIdStr },
+                        { primaryBusinessId: vIdStr },
+                        { 'businesses._id': vIdStr },
+                    ];
+                    if (mongodb_1.ObjectId.isValid(vIdStr)) {
+                        orConditions.push({ _id: new mongodb_1.ObjectId(vIdStr) });
+                    }
+                    else {
+                        orConditions.push({ _id: vIdStr });
+                    }
+                    const vUser = await mongoDb.collection('users').findOne({ $or: orConditions });
+                    if (vUser && (vUser.isAcceptingOrders === false || vUser.acceptingOrders === false)) {
+                        return res.status(403).json({
+                            status: 'error',
+                            message: 'This store is currently closed and not accepting new orders.'
+                        });
+                    }
+                }
+                catch (e) { }
+            }
         }
         const isBookingType = ['Booking', 'Stay', 'Travel', 'Services'].includes(type) || req.body.order_type === 'booking';
         const isJobType = ['Job', 'Jobs'].includes(type);
         const prefix = isBookingType ? 'BKG' : isJobType ? 'JOB' : 'ORD';
         const orderId = prefix + Math.floor(1000 + Math.random() * 9000);
         const orderNo = prefix + Math.floor(100000 + Math.random() * 900000);
-        const resolvedCustId = (customer_id || customerId || memberId || req.body.user_id || req.user?.customerId || req.user?.registrationId || req.user?.userId || '').trim();
-        const resolvedEmail = (customer_email || candidateEmail || req.user?.email || '').trim();
+        const authCust = req.user;
+        let resolvedCustId = ((authCust?.role === 'customer' && (authCust.customerId || authCust.registrationId)) ||
+            customer_id || customerId || memberId || req.body.user_id || authCust?.customerId || authCust?.registrationId || authCust?.userId || '').trim();
+        const resolvedEmail = (customer_email || candidateEmail || authCust?.email || '').trim();
+        // Canonical Customer ID resolution: Ensure order is associated with the canonical FIC-CUS ID from database
+        if (mongoDb && (!resolvedCustId || !resolvedCustId.startsWith('FIC-CUS-') || authCust?.userId || authCust?.email)) {
+            try {
+                const lookupFilter = [];
+                if (authCust?.userId)
+                    lookupFilter.push({ id: authCust.userId }, { _id: authCust.userId });
+                if (authCust?.email)
+                    lookupFilter.push({ email: authCust.email.toLowerCase().trim() });
+                if (resolvedEmail)
+                    lookupFilter.push({ email: resolvedEmail.toLowerCase().trim() });
+                const cleanCustPhone = (customer_phone || authCust?.phone || '').toString().replace(/\D/g, '').slice(-10);
+                if (cleanCustPhone.length === 10) {
+                    lookupFilter.push({ phone: cleanCustPhone }, { phone: `+91${cleanCustPhone}` });
+                }
+                if (lookupFilter.length > 0) {
+                    const userDoc = await mongoDb.collection('users').findOne({ $or: lookupFilter }) ||
+                        await mongoDb.collection('customers').findOne({ $or: lookupFilter });
+                    if (userDoc && (userDoc.customerId || userDoc.registrationId)) {
+                        resolvedCustId = (userDoc.customerId || userDoc.registrationId).trim();
+                    }
+                }
+            }
+            catch (custLookupErr) {
+                console.warn('[POST /orders] Customer canonical ID lookup notice:', custLookupErr);
+            }
+        }
         if (isJobType) {
             const candidateName = String(req.body.customer_name || req.body.candidateName || req.body.applicantName || customer_name || '').trim();
             const candidateEmailStr = String(customer_email || candidateEmail || req.body.applicantEmail || req.body.email || '').trim();
@@ -1018,7 +1074,33 @@ router.post('/', async (req, res) => {
                     }
                 }
                 else {
-                    if (!g.aadhaar || !/^\d{12}$/.test(String(g.aadhaar).trim())) {
+                    let guestAadhaar = String(g.aadhaar || '').trim();
+                    if (i === 0 && (!guestAadhaar || guestAadhaar.includes('X') || guestAadhaar.length !== 12)) {
+                        const mongoDb = db_1.db.getDb();
+                        const authUserId = req.user?.id || req.user?._id || req.user?.customerId;
+                        if (mongoDb && authUserId) {
+                            let custQuery = [{ id: authUserId }, { customerId: authUserId }, { registrationId: authUserId }];
+                            try {
+                                if (mongodb_1.ObjectId.isValid(authUserId))
+                                    custQuery.push({ _id: new mongodb_1.ObjectId(authUserId) });
+                            }
+                            catch (e) { }
+                            const custDoc = await mongoDb.collection('users').findOne({ $or: custQuery }).catch(() => null);
+                            if (custDoc?.aadhaar) {
+                                try {
+                                    const decrypted = custDoc.aadhaar.startsWith('v1:')
+                                        ? securityManager_1.securityManager.decryptAES256GCM(custDoc.aadhaar)
+                                        : custDoc.aadhaar;
+                                    if (/^\d{12}$/.test(decrypted)) {
+                                        guestAadhaar = decrypted;
+                                        g.aadhaar = decrypted;
+                                    }
+                                }
+                                catch (e) { }
+                            }
+                        }
+                    }
+                    if (!guestAadhaar || !/^\d{12}$/.test(guestAadhaar)) {
                         return res.status(400).json({
                             status: 'error',
                             message: `Guest ${i + 1} requires a valid 12-digit Aadhaar number.`
@@ -1279,7 +1361,7 @@ router.post('/', async (req, res) => {
                     product_details: vProdDetails,
                     amount: vAmount,
                     totalAmount: vAmount,
-                    status: isJobType ? (req.body.status || 'APPLICATION RECEIVED') : (req.body.status || 'Order Received'),
+                    status: isJobType ? (req.body.status || 'APPLICATION RECEIVED') : (isBookingType ? (req.body.status || 'Booking Received') : (req.body.status || 'Order Received')),
                     type: type || (isJobType ? 'Job' : (isBookingType ? (req.body.category || 'Services') : 'Order')),
                     category: req.body.category || vItems[0]?.category || vItems[0]?.mainCategory || (isJobType ? 'Jobs' : (isBookingType ? 'Services' : 'Products')),
                     paymentMethod: resolvedPaymentMethod,
@@ -1323,6 +1405,26 @@ router.post('/', async (req, res) => {
                         status: vOrder.status || 'Received',
                     }
                 }).catch(() => { });
+                const multiCustId = vOrder.customer_id || resolvedCustId || vOrder.customerId || '';
+                if (multiCustId) {
+                    socket_1.socketManager.emitToUser('customer', multiCustId, 'new_order_placed', vOrder);
+                    socket_1.socketManager.emitToUser('customer', multiCustId, 'order_created', vOrder);
+                    socket_1.socketManager.emitToUser('customer', multiCustId, specificMultiEvent, vOrder);
+                    fcmPushService_1.fcmPushService.dispatchToCustomer(multiCustId, {
+                        title: isMultiJob ? 'Job Application Submitted! 💼' : (isMultiBooking ? 'Booking Confirmed! 📅' : 'Order Placed Successfully! 🛍️'),
+                        body: `${(vOrder.items && vOrder.items[0]?.name) || vOrder.product_details || 'Your order'} (#${vOrder.order_number || vOrderId}) has been placed.`,
+                        targetId: String(vOrderId),
+                        orderId: String(vOrderId),
+                        category: isMultiJob ? 'Jobs' : (isMultiBooking ? 'Bookings' : 'Orders'),
+                        segment: isMultiJob ? 'Jobs' : (isMultiBooking ? 'Bookings' : 'Orders'),
+                        data: {
+                            orderId: String(vOrderId),
+                            orderNumber: vOrder.order_number || vOrderId,
+                            status: vOrder.status || 'Received',
+                            targetScreen: 'Orders',
+                        },
+                    }).catch(() => { });
+                }
                 await realtime_1.eventPublisher.publishEvent(specificMultiEntity, realtime_1.RealtimeActions.CREATED, vOrder.id, vOrder, { role: 'vendor', userId: vId });
                 setTimeout(async () => {
                     await runAutoAssignment(vOrderId);
@@ -1378,7 +1480,7 @@ router.post('/', async (req, res) => {
             product_details: product_details || travelProduct?.name || 'Generic Connect Item',
             amount: finalOrderAmount,
             totalAmount: finalOrderAmount,
-            status: isJobType ? (req.body.status || 'APPLICATION RECEIVED') : (req.body.status || 'Order Received'),
+            status: isJobType ? (req.body.status || 'APPLICATION RECEIVED') : (isBookingType ? (req.body.status || 'Booking Received') : (req.body.status || 'Order Received')),
             type: type || (isJobType ? 'Job' : (isBookingType ? (req.body.category || 'Services') : 'Order')),
             category: req.body.category || (items && items[0]?.category) || (items && items[0]?.mainCategory) || (isJobType ? 'Jobs' : (isBookingType ? 'Services' : 'Products')),
             paymentMethod: resolvedPaymentMethod,
@@ -1466,6 +1568,20 @@ router.post('/', async (req, res) => {
             socket_1.socketManager.emitToUser('customer', cIdTarget, 'new_order_placed', newOrder);
             socket_1.socketManager.emitToUser('customer', cIdTarget, 'order_created', newOrder);
             socket_1.socketManager.emitToUser('customer', cIdTarget, specificSingleEvent, newOrder);
+            fcmPushService_1.fcmPushService.dispatchToCustomer(cIdTarget, {
+                title: isJobType ? 'Job Application Submitted! 💼' : (isBookingType ? 'Booking Confirmed! 📅' : 'Order Placed Successfully! 🛍️'),
+                body: `${(newOrder.items && newOrder.items[0]?.name) || newOrder.product_details || 'Your order'} (#${newOrder.order_number || newOrder.id}) has been placed.`,
+                targetId: String(newOrder.id || newOrder._id),
+                orderId: String(newOrder.id || newOrder._id),
+                category: isJobType ? 'Jobs' : (isBookingType ? 'Bookings' : 'Orders'),
+                segment: isJobType ? 'Jobs' : (isBookingType ? 'Bookings' : 'Orders'),
+                data: {
+                    orderId: String(newOrder.id || newOrder._id),
+                    orderNumber: newOrder.order_number || newOrder.id,
+                    status: newOrder.status || 'Received',
+                    targetScreen: 'Orders',
+                },
+            }).catch(() => { });
         }
         const uIdTarget = newOrder.user_id;
         if (uIdTarget && uIdTarget !== cIdTarget) {
@@ -1612,6 +1728,19 @@ router.post('/:id/prepare', middleware_1.authenticateToken, (0, middleware_1.enf
         const targetCustPrep = updated?.customer_id || updated?.customerId || updated?.user_id;
         if (targetCustPrep) {
             socket_1.socketManager.emitToUser('customer', targetCustPrep, 'order_status_updated', { status: 'Preparing', orderId: id, order: updated });
+            fcmPushService_1.fcmPushService.dispatchToCustomer(String(targetCustPrep), {
+                title: 'Order Preparing 🍳',
+                body: `Your order #${updated?.order_number || id} is being prepared by the vendor.`,
+                targetId: String(id),
+                orderId: String(id),
+                category: updated?.category || 'Products',
+                segment: 'Orders',
+                data: {
+                    orderId: String(id),
+                    status: 'Preparing',
+                    targetScreen: 'Orders',
+                },
+            }).catch(() => { });
         }
         await realtime_1.eventPublisher.publishEvent(realtime_1.RealtimeEntities.ORDER, realtime_1.RealtimeActions.STATUS_CHANGED, id, { orderId: id, status: 'Preparing', updated }, { room: `order:${id}` });
         res.json({
@@ -1642,6 +1771,19 @@ router.post('/:id/ready', middleware_1.authenticateToken, (0, middleware_1.enfor
         const targetCustReady = updated?.customer_id || updated?.customerId || updated?.user_id;
         if (targetCustReady) {
             socket_1.socketManager.emitToUser('customer', targetCustReady, 'order_status_updated', { status: 'Ready For Pickup', orderId: id, order: updated });
+            fcmPushService_1.fcmPushService.dispatchToCustomer(String(targetCustReady), {
+                title: 'Order Ready For Pickup 📦',
+                body: `Your order #${updated?.order_number || id} is packed and ready for delivery/pickup.`,
+                targetId: String(id),
+                orderId: String(id),
+                category: updated?.category || 'Products',
+                segment: 'Orders',
+                data: {
+                    orderId: String(id),
+                    status: 'Ready For Pickup',
+                    targetScreen: 'Orders',
+                },
+            }).catch(() => { });
         }
         await realtime_1.eventPublisher.publishEvent(realtime_1.RealtimeEntities.ORDER, realtime_1.RealtimeActions.STATUS_CHANGED, id, { orderId: id, status: 'Ready For Pickup', updated }, { room: `order:${id}` });
         // Trigger auto-assignment if not already assigned
@@ -1832,6 +1974,21 @@ router.put('/:id/status', middleware_1.authenticateToken, async (req, res) => {
         const targetCustGen = updated?.customer_id || updated?.customerId || updated?.user_id;
         if (targetCustGen) {
             socket_1.socketManager.emitToUser('customer', targetCustGen, 'order_status_updated', statusPayload);
+            fcmPushService_1.fcmPushService.dispatchToCustomer(String(targetCustGen), {
+                title: `${category} Status Updated`,
+                body: `${existingOrder.itemName || existingOrder.product_details || 'Your order'} (#${existingOrder.order_number || id}): ${previousStatus} → ${cleanStatus}`,
+                targetId: String(id),
+                orderId: String(id),
+                category,
+                segment: isJob ? 'Jobs' : (isBooking ? 'Bookings' : 'Orders'),
+                data: {
+                    orderId: String(id),
+                    previousStatus,
+                    newStatus: cleanStatus,
+                    status: cleanStatus,
+                    screen: 'Orders',
+                }
+            }).catch(() => { });
         }
         if (vendorId) {
             socket_1.socketManager.emitToVendor(String(vendorId), 'order_status_updated', statusPayload);
