@@ -27,15 +27,54 @@ class FcmPushService {
                 return { success: false, tokensTargeted: 0, tokensDelivered: 0, error: 'Database unavailable' };
             }
             const vidStr = vendorId.toString();
+            const allAssociatedIds = new Set([vidStr]);
+            // Resolve parent vendor user and all outlet IDs from database
+            try {
+                const q = [
+                    { id: vidStr },
+                    { vendorId: vidStr },
+                    { registrationId: vidStr },
+                    { primaryBusinessId: vidStr },
+                    { 'businesses._id': vidStr },
+                    { 'businesses.id': vidStr }
+                ];
+                if (mongodb_1.ObjectId.isValid(vidStr)) {
+                    q.push({ _id: new mongodb_1.ObjectId(vidStr) });
+                }
+                const vendorUser = await mongoDb.collection('users').findOne({ $or: q });
+                if (vendorUser) {
+                    if (vendorUser._id)
+                        allAssociatedIds.add(vendorUser._id.toString());
+                    if (vendorUser.vendorId)
+                        allAssociatedIds.add(vendorUser.vendorId.toString());
+                    if (vendorUser.registrationId)
+                        allAssociatedIds.add(vendorUser.registrationId.toString());
+                    if (vendorUser.primaryBusinessId)
+                        allAssociatedIds.add(vendorUser.primaryBusinessId.toString());
+                    if (Array.isArray(vendorUser.businesses)) {
+                        for (const b of vendorUser.businesses) {
+                            const bid = (b?._id || b?.id || b)?.toString();
+                            if (bid)
+                                allAssociatedIds.add(bid);
+                        }
+                    }
+                }
+            }
+            catch (err) {
+                console.warn('[FcmPushService] Error resolving associated vendor IDs:', err?.message);
+            }
+            const idList = Array.from(allAssociatedIds);
             const targetConditions = [
-                { userId: vidStr },
-                { vendorId: vidStr },
-                { targetId: vidStr },
-                { vendorIds: vidStr },
-                { businessIds: vidStr },
+                { userId: { $in: idList } },
+                { vendorId: { $in: idList } },
+                { targetId: { $in: idList } },
+                { vendorIds: { $in: idList } },
+                { businessIds: { $in: idList } },
             ];
-            if (mongodb_1.ObjectId.isValid(vidStr)) {
-                targetConditions.push({ userId: new mongodb_1.ObjectId(vidStr) });
+            for (const id of idList) {
+                if (mongodb_1.ObjectId.isValid(id)) {
+                    targetConditions.push({ userId: new mongodb_1.ObjectId(id) });
+                }
             }
             // Query registered tokens from MongoDB
             const tokenDocs = await mongoDb
@@ -171,7 +210,8 @@ class FcmPushService {
      */
     sendSinglePush(token, payload, isVendorTarget = false) {
         return new Promise((resolve) => {
-            if (!this.serverKey) {
+            const activeServerKey = this.serverKey || process.env.FCM_SERVER_KEY || process.env.FIREBASE_SERVER_KEY || '';
+            if (!activeServerKey) {
                 // When server key is not configured, simulate successful queueing
                 console.log(`[FcmPushService] FCM server key not set in env; logged payload for token ${token.substring(0, 15)}...`);
                 return resolve(true);

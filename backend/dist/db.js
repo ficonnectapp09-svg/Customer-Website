@@ -337,9 +337,9 @@ class DatabaseManager {
                         const cleanCustId = String(rawId).trim();
                         const cleanLower = cleanCustId.toLowerCase();
                         const cleanDigits = cleanCustId.replace(/\D/g, '');
-                        orList.push({ customer_id: cleanCustId }, { customerId: cleanCustId }, { memberId: cleanCustId }, { user_id: cleanCustId }, { customer_email: cleanLower }, { candidateEmail: cleanLower });
+                        orList.push({ customer_id: cleanCustId }, { customerId: cleanCustId }, { memberId: cleanCustId }, { user_id: cleanCustId }, { userId: cleanCustId }, { customer_email: cleanLower }, { customerEmail: cleanLower }, { candidateEmail: cleanLower }, { email: cleanLower });
                         if (cleanDigits && cleanDigits.length >= 7) {
-                            orList.push({ customer_phone: cleanDigits }, { customer_phone: `+91${cleanDigits}` }, { customer_phone: `91${cleanDigits}` });
+                            orList.push({ customer_phone: cleanDigits }, { customer_phone: `+91${cleanDigits}` }, { customer_phone: `91${cleanDigits}` }, { customerPhone: cleanDigits }, { customerPhone: `+91${cleanDigits}` }, { customerPhone: `91${cleanDigits}` }, { candidatePhone: cleanDigits }, { phone: cleanDigits }, { phone: `+91${cleanDigits}` });
                         }
                     });
                     query.$or = orList;
@@ -358,12 +358,16 @@ class DatabaseManager {
             res = res.filter(o => idList.includes(String(o.customer_id || '').toLowerCase()) ||
                 idList.includes(String(o.customerId || '').toLowerCase()) ||
                 idList.includes(String(o.user_id || '').toLowerCase()) ||
+                idList.includes(String(o.userId || '').toLowerCase()) ||
                 idList.includes(String(o.memberId || '').toLowerCase()) ||
                 idList.includes(String(o.candidateEmail || '').toLowerCase()) ||
+                idList.includes(String(o.customerEmail || '').toLowerCase()) ||
                 idList.includes(String(o.customer_email || '').toLowerCase()) ||
+                idList.includes(String(o.email || '').toLowerCase()) ||
                 idList.some(id => {
                     const digits = id.replace(/\D/g, '');
-                    return digits.length >= 7 && String(o.customer_phone || '').replace(/\D/g, '') === digits;
+                    const oDigits = String(o.customer_phone || o.customerPhone || o.candidatePhone || o.phone || '').replace(/\D/g, '');
+                    return digits.length >= 7 && oDigits.length >= 7 && (digits.endsWith(oDigits) || oDigits.endsWith(digits));
                 }));
         }
         return res.sort((a, b) => b.id.localeCompare(a.id));
