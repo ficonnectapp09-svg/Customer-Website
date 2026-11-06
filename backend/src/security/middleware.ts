@@ -19,6 +19,9 @@ export interface AuthenticatedRequest extends Request {
     [key: string]: any;
   };
   sessionId?: string;
+  body: any;
+  params: any;
+  query: any;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

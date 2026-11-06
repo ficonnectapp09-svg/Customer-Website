@@ -306,9 +306,9 @@ class FcmPushService {
         },
       };
 
-      const req = https.request(options, (res) => {
+      const req = https.request(options, (res: any) => {
         let responseBody = '';
-        res.on('data', (chunk) => (responseBody += chunk));
+        res.on('data', (chunk: any) => (responseBody += chunk));
         res.on('end', () => {
           if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
             resolve(true);
@@ -322,7 +322,7 @@ class FcmPushService {
         });
       });
 
-      req.on('error', (e) => {
+      req.on('error', (e: any) => {
         console.warn('[FcmPushService] Request error:', e.message);
         resolve(false);
       });

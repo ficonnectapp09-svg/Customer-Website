@@ -28,7 +28,7 @@ export function getAppRoleConfig(): RoleAuthConfig {
 
   let allowedRoles: string[];
   if (rawAllowed) {
-    allowedRoles = rawAllowed.split(',').map(r => r.trim().toLowerCase()).filter(Boolean);
+    allowedRoles = rawAllowed.split(',').map((r: string) => r.trim().toLowerCase()).filter(Boolean);
   } else {
     // Default allowed roles based on discovered appContext
     switch (appContext) {

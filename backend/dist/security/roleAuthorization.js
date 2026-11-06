@@ -24,7 +24,7 @@ function getAppRoleConfig() {
     const appContext = rawContext || 'customer';
     let allowedRoles;
     if (rawAllowed) {
-        allowedRoles = rawAllowed.split(',').map(r => r.trim().toLowerCase()).filter(Boolean);
+        allowedRoles = rawAllowed.split(',').map((r) => r.trim().toLowerCase()).filter(Boolean);
     }
     else {
         // Default allowed roles based on discovered appContext

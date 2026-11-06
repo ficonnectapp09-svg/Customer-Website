@@ -476,7 +476,7 @@ router.post('/recharge/verify', optionalAuthenticateToken, paymentRateLimiter, a
       });
     }
 
-    const verifiedCreditAmount = pendingOrder?.amountRupees || (process.env.NODE_ENV === 'production' ? 0 : (req.body.amount ? parseFloat(req.body.amount) : 0));
+    const verifiedCreditAmount = pendingOrder?.amountRupees || (process.env.NODE_ENV === 'production' ? 0 : ((req as any).body?.amount ? parseFloat((req as any).body.amount) : 0));
 
     if (verifiedCreditAmount <= 0) {
       return res.status(400).json({
@@ -566,7 +566,7 @@ router.post('/recharge/verify', optionalAuthenticateToken, paymentRateLimiter, a
 // 5. POST: /api/wallet/pay (Customer Product Payment using Wallet with paymentRateLimiter)
 router.post('/pay', authenticateToken, enforceRoleAndApproval('customer', 'admin'), paymentRateLimiter, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { amount, orderId, orderDetails, userId, customerId, email, phone } = req.body;
+    const { amount, orderId, orderDetails, userId, customerId, email, phone } = (req as any).body || {};
     const { target, isOwner } = await resolveWalletTarget(req, { userId, customerId, email, phone });
     if (!isOwner || !target) {
       return res.status(403).json({ success: false, code: 'FORBIDDEN_IDOR', error: 'Access denied: You cannot make payments from another customer\'s wallet.' });

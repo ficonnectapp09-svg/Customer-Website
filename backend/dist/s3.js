@@ -40,14 +40,17 @@ function getS3Client() {
     return s3ClientInstance;
 }
 const presignedUrlCache = new Map();
-setInterval(() => {
+const cleanupInterval = setInterval(() => {
     const now = Date.now();
     for (const [k, entry] of presignedUrlCache.entries()) {
         if (entry.expiresAt <= now) {
             presignedUrlCache.delete(k);
         }
     }
-}, 10 * 60 * 1000).unref?.();
+}, 10 * 60 * 1000);
+if (typeof cleanupInterval?.unref === 'function') {
+    cleanupInterval.unref();
+}
 // Comprehensive MIME allowlist supporting Images, Documents, and Audio
 exports.ALLOWED_MIME_MAP = {
     // Images (Max 15MB)

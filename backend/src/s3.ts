@@ -52,14 +52,17 @@ interface PresignedUrlCacheEntry {
 }
 const presignedUrlCache = new Map<string, PresignedUrlCacheEntry>();
 
-setInterval(() => {
+const cleanupInterval = setInterval(() => {
   const now = Date.now();
   for (const [k, entry] of presignedUrlCache.entries()) {
     if (entry.expiresAt <= now) {
       presignedUrlCache.delete(k);
     }
   }
-}, 10 * 60 * 1000).unref?.();
+}, 10 * 60 * 1000);
+if (typeof (cleanupInterval as any)?.unref === 'function') {
+  (cleanupInterval as any).unref();
+}
 
 // Comprehensive MIME allowlist supporting Images, Documents, and Audio
 export const ALLOWED_MIME_MAP: Record<string, { ext: string; category: 'image' | 'document' | 'audio'; maxSizeBytes: number }> = {

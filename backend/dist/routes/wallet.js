@@ -429,7 +429,7 @@ router.post('/recharge/verify', middleware_1.optionalAuthenticateToken, middlewa
                 error: 'This recharge order has already been finalized.'
             });
         }
-        const verifiedCreditAmount = pendingOrder?.amountRupees || (process.env.NODE_ENV === 'production' ? 0 : (req.body.amount ? parseFloat(req.body.amount) : 0));
+        const verifiedCreditAmount = pendingOrder?.amountRupees || (process.env.NODE_ENV === 'production' ? 0 : (req.body?.amount ? parseFloat(req.body.amount) : 0));
         if (verifiedCreditAmount <= 0) {
             return res.status(400).json({
                 success: false,
@@ -502,7 +502,7 @@ router.post('/recharge/verify', middleware_1.optionalAuthenticateToken, middlewa
 // 5. POST: /api/wallet/pay (Customer Product Payment using Wallet with paymentRateLimiter)
 router.post('/pay', middleware_1.authenticateToken, (0, middleware_1.enforceRoleAndApproval)('customer', 'admin'), middleware_1.paymentRateLimiter, async (req, res) => {
     try {
-        const { amount, orderId, orderDetails, userId, customerId, email, phone } = req.body;
+        const { amount, orderId, orderDetails, userId, customerId, email, phone } = req.body || {};
         const { target, isOwner } = await resolveWalletTarget(req, { userId, customerId, email, phone });
         if (!isOwner || !target) {
             return res.status(403).json({ success: false, code: 'FORBIDDEN_IDOR', error: 'Access denied: You cannot make payments from another customer\'s wallet.' });

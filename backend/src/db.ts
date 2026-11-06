@@ -120,6 +120,10 @@ export interface Order {
   memberName?: string;
   totalAmount?: number;
   finalAmount?: number;
+  appointment_slot?: string;
+  serviceName?: string;
+  guestList?: any[];
+  [key: string]: any;
 }
 
 export interface DeliveryAssignment {
