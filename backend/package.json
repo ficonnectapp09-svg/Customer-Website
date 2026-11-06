@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "dev": "nodemon src/index.ts",
-    "build": "tsc",
+    "build": "npm install && tsc",
     "test:delivery": "ts-node src/test_delivery.ts",
     "start": "node server.js"
   },
