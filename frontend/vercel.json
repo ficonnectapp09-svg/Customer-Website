@@ -2,15 +2,15 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://api.ficapp.in/api/:path*"
+      "destination": "https://connect-app-ukpk.onrender.com/api/:path*"
     },
     {
       "source": "/uploads/:path*",
-      "destination": "https://api.ficapp.in/uploads/:path*"
+      "destination": "https://connect-app-ukpk.onrender.com/uploads/:path*"
     },
     {
       "source": "/socket.io/:path*",
-      "destination": "https://api.ficapp.in/socket.io/:path*"
+      "destination": "https://connect-app-ukpk.onrender.com/socket.io/:path*"
     },
     {
       "source": "/((?!assets/|.*\\.[a-zA-Z0-9]+$).*)",

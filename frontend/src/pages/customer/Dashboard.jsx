@@ -1345,10 +1345,9 @@ export default function CustomerDashboard({
 
   const fetchAdminPromotions = useCallback(async () => {
     try {
-      let resOffers = await fetch(`${getAdminBackendUrl()}/api/admin/public/exclusive-offers`).catch(() => null);
-      if (!resOffers || !resOffers.ok) {
-        resOffers = await fetch(`/api/admin/public/exclusive-offers`).catch(() => null);
-      }
+      const adminBase = getAdminBackendUrl();
+      const targetUrl = adminBase ? `${adminBase}/api/admin/public/exclusive-offers` : '/api/admin/public/exclusive-offers';
+      const resOffers = await fetch(targetUrl).catch(() => null);
       if (resOffers && resOffers.ok) {
         const data = await resOffers.json();
         if (Array.isArray(data)) {
@@ -2859,9 +2858,8 @@ export default function CustomerDashboard({
     const mainUrl = typeof getBackendUrl === 'function' ? getBackendUrl() : '';
 
     const endpoints = [
-      mainUrl ? `${mainUrl}/api/public/banners` : '',
-      mainUrl ? `${mainUrl}/api/banners` : '',
-      '/api/public/banners'
+      mainUrl ? `${mainUrl}/api/public/banners` : '/api/public/banners',
+      mainUrl ? `${mainUrl}/api/banners` : ''
     ];
     const unique = [...new Set(endpoints.filter(Boolean))];
 
@@ -4788,24 +4786,18 @@ export default function CustomerDashboard({
   useEffect(() => {
     const fetchStates = async () => {
       const baseUrl = typeof getBackendUrl === 'function' ? getBackendUrl() : '';
-      const endpoints = [
-        baseUrl ? `${baseUrl}/api/territory/states` : '',
-        '/api/territory/states'
-      ];
-      const unique = [...new Set(endpoints.filter(Boolean))];
-      for (const ep of unique) {
-        try {
-          const res = await fetch(ep, { headers: { 'Accept': 'application/json' } });
-          if (res.ok) {
-            const data = await res.json();
-            const list = Array.isArray(data) ? data : (data.states || data.data || []);
-            if (list.length > 0) {
-              setIndianStates(list.map(s => typeof s === 'string' ? s : s.name).filter(Boolean).sort());
-              return;
-            }
+      const stateUrl = baseUrl ? `${baseUrl}/api/territory/states` : '/api/territory/states';
+      try {
+        const res = await fetch(stateUrl, { headers: { 'Accept': 'application/json' } });
+        if (res.ok) {
+          const data = await res.json();
+          const list = Array.isArray(data) ? data : (data.states || data.data || []);
+          if (list.length > 0) {
+            setIndianStates(list.map(s => typeof s === 'string' ? s : s.name).filter(Boolean).sort());
+            return;
           }
-        } catch (e) {}
-      }
+        }
+      } catch (e) {}
     };
     fetchStates();
   }, []);
@@ -4818,24 +4810,18 @@ export default function CustomerDashboard({
     const fetchDistricts = async () => {
       const baseUrl = typeof getBackendUrl === 'function' ? getBackendUrl() : '';
       const encoded = encodeURIComponent(addressForm.state);
-      const endpoints = [
-        baseUrl ? `${baseUrl}/api/territory/districts?state=${encoded}` : '',
-        `/api/territory/districts?state=${encoded}`
-      ];
-      const unique = [...new Set(endpoints.filter(Boolean))];
-      for (const ep of unique) {
-        try {
-          const res = await fetch(ep, { headers: { 'Accept': 'application/json' } });
-          if (res.ok) {
-            const data = await res.json();
-            const list = Array.isArray(data) ? data : (data.districts || data.data || []);
-            if (list.length > 0) {
-              setDbDistricts(list.map(d => typeof d === 'string' ? d : d.name).filter(Boolean).sort());
-              return;
-            }
+      const districtUrl = baseUrl ? `${baseUrl}/api/territory/districts?state=${encoded}` : `/api/territory/districts?state=${encoded}`;
+      try {
+        const res = await fetch(districtUrl, { headers: { 'Accept': 'application/json' } });
+        if (res.ok) {
+          const data = await res.json();
+          const list = Array.isArray(data) ? data : (data.districts || data.data || []);
+          if (list.length > 0) {
+            setDbDistricts(list.map(d => typeof d === 'string' ? d : d.name).filter(Boolean).sort());
+            return;
           }
-        } catch (e) {}
-      }
+        }
+      } catch (e) {}
     };
     fetchDistricts();
   }, [addressForm.state]);

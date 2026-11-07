@@ -9,10 +9,9 @@ export default function Offers() {
   useEffect(() => {
     const fetchOffers = async () => {
       try {
-        let res = await fetch(`${getAdminBackendUrl()}/api/admin/public/exclusive-offers`).catch(() => null);
-        if (!res || !res.ok) {
-          res = await fetch(`/api/admin/public/exclusive-offers`).catch(() => null);
-        }
+        const adminBase = getAdminBackendUrl();
+        const targetUrl = adminBase ? `${adminBase}/api/admin/public/exclusive-offers` : '/api/admin/public/exclusive-offers';
+        const res = await fetch(targetUrl).catch(() => null);
         if (res && res.ok) {
           const data = await res.json();
           if (Array.isArray(data)) {

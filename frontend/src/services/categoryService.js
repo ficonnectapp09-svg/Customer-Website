@@ -268,11 +268,11 @@ export const fetchAdminCategories = async (forceRefresh = false) => {
   }
 
   activeFetchCategoriesPromise = (async () => {
+    const backendUrl = getBackendUrl();
+    const adminUrl = getAdminBackendUrl();
     const urlsToTry = [
-      `${getBackendUrl()}/api/public/categories`,
-      '/api/public/categories',
-      '/api/admin/categories',
-      `${getAdminBackendUrl()}/api/admin/categories`
+      backendUrl ? `${backendUrl}/api/public/categories` : '/api/public/categories',
+      adminUrl && adminUrl !== backendUrl ? `${adminUrl}/api/admin/categories` : null
     ];
 
     const uniqueUrls = [...new Set(urlsToTry.filter(Boolean))];
