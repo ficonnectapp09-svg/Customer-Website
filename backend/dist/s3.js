@@ -201,7 +201,7 @@ function getDurableImageUrl(objectKey) {
         const cfBase = cloudfrontDomain.startsWith('http') ? cloudfrontDomain : `https://${cloudfrontDomain}`;
         return `${cfBase.replace(/\/+$/, '')}/${cleanKey}`;
     }
-    const backendBase = process.env.BACKEND_URL || 'https://api.ficapp.in';
+    const backendBase = process.env.BACKEND_URL || 'https://connect-app-ukpk.onrender.com';
     return `${backendBase.replace(/\/+$/, '')}/api/media/s3/${cleanKey}`;
 }
 function resolveDurableImageUrl(input) {
@@ -210,6 +210,9 @@ function resolveDurableImageUrl(input) {
     const trimmed = input.trim();
     if (!trimmed || trimmed === 'null' || trimmed === 'undefined')
         return '';
+    if (trimmed.includes('api.ficapp.in') || trimmed.includes('vendor.ficapp.in') || trimmed.includes('/uploads/img_')) {
+        return '';
+    }
     if (trimmed.startsWith('https://res.cloudinary.com/')) {
         return trimmed;
     }

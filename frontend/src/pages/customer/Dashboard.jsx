@@ -11281,11 +11281,15 @@ export default function CustomerDashboard({
   // Helper to extract clean string image URLs from strings or objects
   const extractCleanUrl = (img) => {
     if (!img) return '';
-    if (typeof img === 'string') return img.trim();
-    if (typeof img === 'object') {
-      return img.url || img.src || img.image || img.uri || '';
+    let val = '';
+    if (typeof img === 'string') val = img.trim();
+    else if (typeof img === 'object') {
+      val = (img.url || img.src || img.image || img.uri || '').trim();
     }
-    return '';
+    if (!val || val.includes('api.ficapp.in') || val.includes('vendor.ficapp.in') || val.includes('/uploads/img_') || val.includes('uploads/img_')) {
+      return '';
+    }
+    return val;
   };
 
   // 12. DETAILED PRODUCT DESCRIPTION PAGE VIEW
@@ -11570,7 +11574,12 @@ export default function CustomerDashboard({
                   <span className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Job Position</span>
                 </div>
               ) : (
-                <img src={activeProductImage || selectedProduct.image} alt={selectedProduct.name} className="w-full h-full object-cover" />
+                <img 
+                  src={activeProductImage || selectedProduct.image || getCategoryFallbackImage(selectedProduct)} 
+                  alt={selectedProduct.name} 
+                  onError={(e) => { e.target.onerror = null; e.target.src = getCategoryFallbackImage(selectedProduct); }}
+                  className="w-full h-full object-cover" 
+                />
               )}
               <button onClick={() => toggleFavorite(selectedProduct.id)} className="absolute right-3 top-3 w-9 h-9 rounded-full bg-white/90 dark:bg-slate-900/90 flex items-center justify-center shadow-md cursor-pointer border-none"><Heart className={`w-4 h-4 ${isFavorited ? 'fill-red-500 text-red-500' : 'text-slate-500'}`} /></button>
               <span className="absolute bottom-3 left-3 bg-black/60 text-white font-extrabold text-[10px] px-2.5 py-0.5 rounded-full">{activeThumbnailIndex + 1} / {thumbnails.length}</span>
@@ -13291,7 +13300,14 @@ export default function CustomerDashboard({
                           <span className="text-[9px] text-slate-400 dark:text-slate-500 font-black uppercase tracking-wider">Job Opening</span>
                         </div>
                       ) : (
-                        <img src={prod.image} alt={prod.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-300" />
+                        <img 
+                          src={prod.image || getCategoryFallbackImage(prod)} 
+                          alt={prod.name} 
+                          loading="lazy" 
+                          decoding="async" 
+                          onError={(e) => { e.target.onerror = null; e.target.src = getCategoryFallbackImage(prod); }}
+                          className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-300" 
+                        />
                       )}
                       {prod.tag && <span className="absolute left-2.5 top-2.5 bg-slate-900/80 text-white text-[7px] font-black px-2 py-0.5 rounded uppercase">{prod.tag}</span>}
                       <button 

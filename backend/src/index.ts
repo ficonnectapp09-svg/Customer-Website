@@ -415,19 +415,24 @@ app.get(['/api/public/products', '/api/products'], async (req, res) => {
       const isDeadUrl = (url: any) => {
         if (!url || typeof url !== 'string') return true;
         const lower = url.trim().toLowerCase();
-        return !lower || lower === 'null' || lower === 'undefined' || lower.includes('connect-vendor.onrender.com') || lower.includes('.onrender.com');
+        return (
+          !lower ||
+          lower === 'null' ||
+          lower === 'undefined' ||
+          lower.includes('connect-vendor.onrender.com') ||
+          lower.includes('api.ficapp.in') ||
+          lower.includes('vendor.ficapp.in') ||
+          lower.includes('/uploads/img_') ||
+          (lower.includes('.onrender.com') && !lower.includes('connect-app-ukpk.onrender.com'))
+        );
       };
 
       const normalizeVendorImageUrl = (rawUrl: any) => {
         if (!rawUrl || typeof rawUrl !== 'string') return '';
         let u = rawUrl.trim();
         if (isDeadUrl(u)) return '';
-        // If the URL was stored pointing to vendor.ficapp.in/uploads/, rewrite to api.ficapp.in/uploads/ so it is served by the backend upload handler
-        if (u.includes('vendor.ficapp.in/uploads/')) {
-          u = u.replace(/https?:\/\/vendor\.ficapp\.in\/uploads\//i, `${process.env.BACKEND_URL || 'https://api.ficapp.in'}/uploads/`);
-        }
         if (u.includes('localhost:8002/uploads/') || u.includes('127.0.0.1:8002/uploads/')) {
-          u = u.replace(/https?:\/\/(localhost|127\.0\.0\.1):8002\/uploads\//i, `${process.env.BACKEND_URL || 'https://api.ficapp.in'}/uploads/`);
+          u = u.replace(/https?:\/\/(localhost|127\.0\.0\.1):8002\/uploads\//i, `${process.env.BACKEND_URL || 'https://connect-app-ukpk.onrender.com'}/uploads/`);
         }
         // Normalize S3 objects to permanent durable URLs & preserve Cloudinary permanent CDN URLs
         return resolveDurableImageUrl(u);

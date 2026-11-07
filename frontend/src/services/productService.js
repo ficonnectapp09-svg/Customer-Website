@@ -245,7 +245,7 @@ export const getCategoryFallbackImage = (pContext) => {
   const cat = (pContext.subNavbarCategory || pContext.mainCategory || pContext.tag || pContext.category || '').toString();
   const name = (pContext.name || pContext.title || '').toLowerCase();
   
-  if (name.includes('rice') || name.includes('biryani') || name.includes('pongal') || name.includes('idly') || name.includes('dosa') || name.includes('chicken') || name.includes('food')) {
+  if (name.includes('rice') || name.includes('biryani') || name.includes('pongal') || name.includes('idly') || name.includes('dosa') || name.includes('chicken') || name.includes('food') || name.includes('meals') || name.includes('sambar') || name.includes('naan')) {
     return 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=800&auto=format&fit=crop&q=80';
   }
   if (name.includes('lehenga') || name.includes('saree') || name.includes('t shirt') || name.includes('shirt') || name.includes('dress') || name.includes('fashion')) {
@@ -257,7 +257,7 @@ export const getCategoryFallbackImage = (pContext) => {
   if (name.includes('hotel') || name.includes('retreat') || name.includes('villa') || name.includes('moonlight') || name.includes('stay')) {
     return 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&auto=format&fit=crop&q=80';
   }
-  if (name.includes('dell') || name.includes('laptop') || name.includes('phone') || name.includes('mobile')) {
+  if (name.includes('fan') || name.includes('celling') || name.includes('ceiling') || name.includes('electronics') || name.includes('cooler') || name.includes('dell') || name.includes('laptop') || name.includes('phone') || name.includes('mobile')) {
     return 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&auto=format&fit=crop&q=80';
   }
 
@@ -286,8 +286,15 @@ export const sanitizeImageUrl = (imgUrl, pContext = null) => {
     return getCategoryFallbackImage(pContext);
   }
 
-  // Prevent loading assets from suspended or dead ephemeral Render instances
-  if (url.includes('connect-vendor.onrender.com') || url.includes('.onrender.com')) {
+  // Prevent loading assets from dead domains or ephemeral upload instances
+  if (
+    url.includes('api.ficapp.in') ||
+    url.includes('vendor.ficapp.in') ||
+    url.includes('/uploads/img_') ||
+    url.includes('uploads/img_') ||
+    url.includes('connect-vendor.onrender.com') ||
+    (url.includes('.onrender.com') && !url.includes('connect-app-ukpk.onrender.com'))
+  ) {
     return getCategoryFallbackImage(pContext);
   }
 
@@ -312,6 +319,9 @@ export const sanitizeImageUrl = (imgUrl, pContext = null) => {
 
   // Canonical backend media S3 endpoint
   if (url.includes('/api/media/s3/') || url.includes('/api/uploads/s3/')) {
+    if (url.includes('ficapp.in')) {
+      return getCategoryFallbackImage(pContext);
+    }
     const cleanPath = url.substring(url.indexOf('/api/'));
     const baseBackend = typeof getBackendUrl === 'function' ? getBackendUrl() : '';
     if (baseBackend && !url.startsWith('http')) {
