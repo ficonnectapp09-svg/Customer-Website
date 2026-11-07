@@ -300,19 +300,35 @@ export const uploadRateLimiter = rateLimit({
   }
 });
 
-// CORS Trusted Origin Validation
+// CORS Trusted Origin Validation - Reads from environment variables
+const configuredAllowedOrigins = (
+  process.env.ALLOWED_ORIGINS ||
+  process.env.CLIENT_URL ||
+  process.env.FRONTEND_URL ||
+  process.env.WEBSITE_URL ||
+  ''
+)
+  .split(',')
+  .map(o => o.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
 export const TRUSTED_ORIGINS = [
-  'https://ficapp.in',
-  'https://www.ficapp.in',
-  'https://api.ficapp.in'
+  ...new Set([
+    'https://ficapp.in',
+    'https://www.ficapp.in',
+    'https://api.ficapp.in',
+    ...configuredAllowedOrigins
+  ])
 ];
 
 export const isAllowedOrigin = (origin?: string): boolean => {
   if (!origin) return false;
-  if (TRUSTED_ORIGINS.includes(origin)) return true;
-  if (origin.endsWith('.ficapp.in')) return true;
+  const cleanOrigin = origin.trim().replace(/\/+$/, '');
+  if (TRUSTED_ORIGINS.includes(cleanOrigin)) return true;
+  if (cleanOrigin.endsWith('.ficapp.in')) return true;
+  if (configuredAllowedOrigins.some(ao => cleanOrigin === ao || cleanOrigin.startsWith(ao))) return true;
   if (!IS_PRODUCTION) {
-    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+    if (cleanOrigin.startsWith('http://localhost:') || cleanOrigin.startsWith('http://127.0.0.1:')) {
       return true;
     }
   }

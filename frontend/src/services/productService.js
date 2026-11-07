@@ -291,22 +291,14 @@ export const sanitizeImageUrl = (imgUrl, pContext = null) => {
     return getCategoryFallbackImage(pContext);
   }
 
-  // Route vendor uploads through backend upload handler to prevent ERR_CONNECTION_RESET
-  if (url.includes('vendor.ficapp.in/uploads/')) {
+  // Route legacy/relative vendor uploads through backend upload handler
+  if (url.includes('/uploads/')) {
     const cleanPath = url.substring(url.indexOf('/uploads/'));
     const baseBackend = typeof getBackendUrl === 'function' ? getBackendUrl() : '';
     if (baseBackend) {
       return `${baseBackend.replace(/\/+$/, '')}${cleanPath}`;
     }
-    return `https://api.ficapp.in${cleanPath}`;
-  }
-  if (url.includes('localhost:8002/uploads/') || url.includes('127.0.0.1:8002/uploads/')) {
-    const cleanPath = url.substring(url.indexOf('/uploads/'));
-    const baseBackend = typeof getBackendUrl === 'function' ? getBackendUrl() : '';
-    if (baseBackend) {
-      return `${baseBackend.replace(/\/+$/, '')}${cleanPath}`;
-    }
-    return `https://api.ficapp.in${cleanPath}`;
+    return cleanPath;
   }
 
   if (url.startsWith('/uploads/') || url.startsWith('uploads/')) {
@@ -330,7 +322,7 @@ export const sanitizeImageUrl = (imgUrl, pContext = null) => {
 
   // Raw S3 object key passed directly (e.g. products/1729...jpg)
   if (/^[a-zA-Z0-9_\-]+\/[a-zA-Z0-9_\-\.]+\.(jpg|jpeg|png|webp|gif|avif|pdf|svg)$/i.test(url)) {
-    const baseBackend = typeof getBackendUrl === 'function' ? getBackendUrl() : 'https://api.ficapp.in';
+    const baseBackend = typeof getBackendUrl === 'function' ? getBackendUrl() : '';
     return `${baseBackend.replace(/\/+$/, '')}/api/media/s3/${url.replace(/^\/+/, '')}`;
   }
 

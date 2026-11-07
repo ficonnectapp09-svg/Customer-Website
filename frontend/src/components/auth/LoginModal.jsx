@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import useAuth from '../../hooks/useAuth';
 import { sanitizeMobileInput, validateMobile } from '../../utils/validation';
+import { getBackendUrl } from '../../services/apiSetup';
 import logoImg from '../../assets/images/forge india logo.jpg';
 
 export default function LoginModal({ isOpen, onClose, onLoginSuccess, onNavigateToJoinNow }) {
@@ -33,31 +34,10 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, onNavigate
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  // Dynamic API Base URL
+  // Centralized API Base URL
   const getApiBase = () => {
-    const formatApiUrl = (raw) => {
-      if (!raw) return '';
-      let clean = raw.trim().replace(/\/+$/, '');
-      if (!clean.startsWith('http://') && !clean.startsWith('https://')) clean = `http://${clean}`;
-      return `${clean}/api`;
-    };
-
-    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
-    if (isHttps) {
-      if (import.meta.env.VITE_API_URL && import.meta.env.VITE_API_URL.startsWith('https://')) {
-        return formatApiUrl(import.meta.env.VITE_API_URL);
-      }
-      return '/api';
-    }
-
-    if (import.meta.env.VITE_API_URL) return formatApiUrl(import.meta.env.VITE_API_URL);
-    if (typeof window === 'undefined') return 'http://localhost:8001/api';
-    const hostname = window.location.hostname;
-    if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1' ||
-        hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.')) {
-      return `http://${hostname || 'localhost'}:8001/api`;
-    }
-    return 'https://api.ficapp.in/api';
+    const base = getBackendUrl();
+    return base ? `${base}/api` : '/api';
   };
 
   // OTP Resend Cooldown Countdown Timer

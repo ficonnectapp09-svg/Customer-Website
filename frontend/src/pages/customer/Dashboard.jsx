@@ -2857,17 +2857,11 @@ export default function CustomerDashboard({
 
   const fetchDbBanners = useCallback(async () => {
     const mainUrl = typeof getBackendUrl === 'function' ? getBackendUrl() : '';
-    const isLocal = typeof window !== 'undefined' && (
-      window.location.hostname === 'localhost' || 
-      window.location.hostname === '127.0.0.1' ||
-      window.location.hostname.startsWith('192.168.')
-    );
 
     const endpoints = [
-      'https://api.ficapp.in/api/public/banners',
       mainUrl ? `${mainUrl}/api/public/banners` : '',
-      'https://api.ficapp.in/api/banners',
-      ...(isLocal ? ['http://localhost:8001/api/public/banners', '/api/public/banners'] : [])
+      mainUrl ? `${mainUrl}/api/banners` : '',
+      '/api/public/banners'
     ];
     const unique = [...new Set(endpoints.filter(Boolean))];
 
@@ -4794,14 +4788,9 @@ export default function CustomerDashboard({
   useEffect(() => {
     const fetchStates = async () => {
       const baseUrl = typeof getBackendUrl === 'function' ? getBackendUrl() : '';
-      const isLocal = typeof window !== 'undefined' && (
-        window.location.hostname === 'localhost' || 
-        window.location.hostname === '127.0.0.1'
-      );
       const endpoints = [
         baseUrl ? `${baseUrl}/api/territory/states` : '',
-        'https://api.ficapp.in/api/territory/states',
-        ...(isLocal ? ['http://localhost:8001/api/territory/states', '/api/territory/states'] : [])
+        '/api/territory/states'
       ];
       const unique = [...new Set(endpoints.filter(Boolean))];
       for (const ep of unique) {
@@ -4828,15 +4817,10 @@ export default function CustomerDashboard({
     }
     const fetchDistricts = async () => {
       const baseUrl = typeof getBackendUrl === 'function' ? getBackendUrl() : '';
-      const isLocal = typeof window !== 'undefined' && (
-        window.location.hostname === 'localhost' || 
-        window.location.hostname === '127.0.0.1'
-      );
       const encoded = encodeURIComponent(addressForm.state);
       const endpoints = [
         baseUrl ? `${baseUrl}/api/territory/districts?state=${encoded}` : '',
-        `https://api.ficapp.in/api/territory/districts?state=${encoded}`,
-        ...(isLocal ? [`http://localhost:8001/api/territory/districts?state=${encoded}`, `/api/territory/districts?state=${encoded}`] : [])
+        `/api/territory/districts?state=${encoded}`
       ];
       const unique = [...new Set(endpoints.filter(Boolean))];
       for (const ep of unique) {
@@ -20018,7 +20002,7 @@ wishlistProducts.forEach(item => addToCart(item));
             </div>
 
             {(() => {
-              const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.ficapp.in';
+              const origin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : '';
               const pId = shareModalProduct.id || shareModalProduct._id || '';
               const tab = getCanonicalTabName(shareModalProduct) || shareModalProduct.mainCategory || shareModalProduct.subNavbarCategory || shareModalProduct.category || activeTab || 'Products';
               const canonicalShareUrl = `${origin}/dashboard?tab=${encodeURIComponent(tab)}&product=${encodeURIComponent(pId)}`;

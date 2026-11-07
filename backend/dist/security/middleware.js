@@ -254,21 +254,35 @@ exports.uploadRateLimiter = (0, express_rate_limit_1.default)({
         message: 'Upload rate limit reached. Please wait a few minutes before trying again.'
     }
 });
-// CORS Trusted Origin Validation
+// CORS Trusted Origin Validation - Reads from environment variables
+const configuredAllowedOrigins = (process.env.ALLOWED_ORIGINS ||
+    process.env.CLIENT_URL ||
+    process.env.FRONTEND_URL ||
+    process.env.WEBSITE_URL ||
+    '')
+    .split(',')
+    .map(o => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
 exports.TRUSTED_ORIGINS = [
-    'https://ficapp.in',
-    'https://www.ficapp.in',
-    'https://api.ficapp.in'
+    ...new Set([
+        'https://ficapp.in',
+        'https://www.ficapp.in',
+        'https://api.ficapp.in',
+        ...configuredAllowedOrigins
+    ])
 ];
 const isAllowedOrigin = (origin) => {
     if (!origin)
         return false;
-    if (exports.TRUSTED_ORIGINS.includes(origin))
+    const cleanOrigin = origin.trim().replace(/\/+$/, '');
+    if (exports.TRUSTED_ORIGINS.includes(cleanOrigin))
         return true;
-    if (origin.endsWith('.ficapp.in'))
+    if (cleanOrigin.endsWith('.ficapp.in'))
+        return true;
+    if (configuredAllowedOrigins.some(ao => cleanOrigin === ao || cleanOrigin.startsWith(ao)))
         return true;
     if (!IS_PRODUCTION) {
-        if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+        if (cleanOrigin.startsWith('http://localhost:') || cleanOrigin.startsWith('http://127.0.0.1:')) {
             return true;
         }
     }
