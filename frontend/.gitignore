@@ -1,0 +1,27 @@
+# Frontend Environment Secrets (never expose private secrets in VITE_* variables)
+.env
+.env.*
+*.env
+*.local
+!.env.example
+
+# Dependencies & Build Outputs
+node_modules/
+dist/
+dist-ssr/
+build/
+coverage/
+.cache/
+.tmp/
+.temp/
+
+# Logs
+*.log
+logs/
+
+# Private Documents & Uploads
+private-uploads/
+secure-uploads/
+customer-documents/
+kyc-documents/
+

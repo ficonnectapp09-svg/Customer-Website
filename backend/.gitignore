@@ -1,0 +1,50 @@
+# Backend Environment Secrets
+.env
+.env.*
+*.env
+*.local
+!.env.example
+
+# Dependencies & Build Outputs
+node_modules/
+dist/
+build/
+coverage/
+.cache/
+.tmp/
+.temp/
+
+# Logs
+*.log
+logs/
+
+# Private Keys & Certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Database Backups
+*.dump
+*.bson
+*.backup
+*.sqlite
+*.sqlite3
+database-backup/
+db-backup/
+backups/
+mongodb-dumps/
+
+# Runtime Uploads & Private Documents
+uploads/
+private-uploads/
+secure-uploads/
+customer-documents/
+vendor-documents/
+kyc-documents/
+aadhaar-documents/
+pan-documents/
+private-storage/
+

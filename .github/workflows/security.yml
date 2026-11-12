@@ -1,0 +1,34 @@
+name: Git Security & Secret Scan
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run repository secret and prohibited-file scan
+        run: node scripts/git-security-scan.js --ci
+
+      - name: Check frontend dependencies for high/critical vulnerabilities
+        working-directory: frontend
+        run: npm audit --audit-level=high || true
+
+      - name: Check backend dependencies for high/critical vulnerabilities
+        working-directory: backend
+        run: npm audit --audit-level=high || true
+
