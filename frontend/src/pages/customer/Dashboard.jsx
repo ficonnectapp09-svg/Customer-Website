@@ -11286,7 +11286,15 @@ export default function CustomerDashboard({
     else if (typeof img === 'object') {
       val = (img.url || img.src || img.image || img.uri || '').trim();
     }
-    if (!val || val.includes('api.ficapp.in') || val.includes('vendor.ficapp.in') || val.includes('/uploads/img_') || val.includes('uploads/img_')) {
+    if (
+      !val ||
+      val.includes('api.ficapp.in') ||
+      val.includes('vendor.ficapp.in') ||
+      val.includes('/uploads/img_') ||
+      val.includes('uploads/img_') ||
+      val.includes('connect-vendor') ||
+      (val.includes('.onrender.com') && !val.includes('connect-app-ukpk.onrender.com'))
+    ) {
       return '';
     }
     return val;
@@ -11590,7 +11598,7 @@ export default function CustomerDashboard({
                 </>
               )}
             </div>
-            <div className="flex gap-2 overflow-x-auto no-scrollbar">{thumbnails.slice(0, 8).map((t, i) => (<button key={i} onClick={() => { setActiveProductImage(t); setActiveThumbnailIndex(i); }} className={`w-14 h-10 rounded-lg border-2 overflow-hidden shrink-0 cursor-pointer ${activeThumbnailIndex === i ? 'border-amber-400 shadow-md' : 'border-slate-200 dark:border-slate-800'}`}><img src={t} alt="" className="w-full h-full object-cover" /></button>))}</div>
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">{thumbnails.slice(0, 8).map((t, i) => (<button key={i} onClick={() => { setActiveProductImage(t); setActiveThumbnailIndex(i); }} className={`w-14 h-10 rounded-lg border-2 overflow-hidden shrink-0 cursor-pointer ${activeThumbnailIndex === i ? 'border-amber-400 shadow-md' : 'border-slate-200 dark:border-slate-800'}`}><img src={t} alt="" onError={(e) => { e.target.onerror = null; e.target.src = "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=800"; }} className="w-full h-full object-cover" /></button>))}</div>
 
             <div className="bg-white dark:bg-[#0b1329] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 text-left">
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">About {selectedProduct.name}</span>
@@ -13768,7 +13776,12 @@ export default function CustomerDashboard({
                         }}
                         className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-[#f43397] focus:ring-[#f43397] cursor-pointer shrink-0"
                       />
-                      <img src={item.image || item.imageUrl || (Array.isArray(item.images) ? (item.images[0]?.url || item.images[0]) : "") || "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=300&auto=format&fit=crop&q=80"} alt={item.name || item.title || "Cart Item"} className="w-12 h-12 rounded-xl object-cover border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0" />
+                      <img 
+                        src={item.image || item.imageUrl || (Array.isArray(item.images) ? (item.images[0]?.url || item.images[0]) : "") || "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=300&auto=format&fit=crop&q=80"} 
+                        alt={item.name || item.title || "Cart Item"} 
+                        onError={(e) => { e.target.onerror = null; e.target.src = "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=300&auto=format&fit=crop&q=80"; }}
+                        className="w-12 h-12 rounded-xl object-cover border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0" 
+                      />
                       <div className="text-left overflow-hidden">
                         <h4 className="text-xs font-black text-slate-900 dark:text-white line-clamp-1">{item.name || item.title || "Cart Item"}</h4>
                         {isOutOfStock && (
@@ -16110,7 +16123,12 @@ wishlistProducts.forEach(item => addToCart(item));
                 <div className="bg-white dark:bg-[#0b1329] rounded-2xl p-5 border border-slate-200/60 dark:border-slate-800/80 flex flex-col items-center text-center justify-between">
                   <div className="w-full flex flex-col items-center">
                     <div className="relative w-28 h-28 rounded-full overflow-hidden border-2 border-amber-400 p-0.5 mt-2 shadow-xs">
-                      <img src={activeScheduleModalItem.image} alt={activeScheduleModalItem.name} className="w-full h-full object-cover rounded-full" />
+                      <img 
+                        src={activeScheduleModalItem.image || getCategoryFallbackImage(activeScheduleModalItem)} 
+                        alt={activeScheduleModalItem.name} 
+                        onError={(e) => { e.target.onerror = null; e.target.src = getCategoryFallbackImage(activeScheduleModalItem); }}
+                        className="w-full h-full object-cover rounded-full" 
+                      />
                       <span className="absolute top-1.5 right-1.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full" />
                     </div>
                     
@@ -17439,7 +17457,12 @@ wishlistProducts.forEach(item => addToCart(item));
                     {/* Mini Profile card */}
                     <div className="flex items-center gap-3 bg-slate-50 dark:bg-[#030712] border border-slate-100 dark:border-slate-800 rounded-xl p-3 select-none">
                       <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-slate-200 p-0.5">
-                        <img src={activeBookNowModalItem.image} alt={activeBookNowModalItem.name} className="w-full h-full object-cover rounded-full" />
+                        <img 
+                          src={activeBookNowModalItem.image || getCategoryFallbackImage(activeBookNowModalItem)} 
+                          alt={activeBookNowModalItem.name} 
+                          onError={(e) => { e.target.onerror = null; e.target.src = getCategoryFallbackImage(activeBookNowModalItem); }}
+                          className="w-full h-full object-cover rounded-full" 
+                        />
                       </div>
                       <div className="text-left flex-grow">
                         <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-0.5 w-full">

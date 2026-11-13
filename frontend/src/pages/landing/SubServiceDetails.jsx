@@ -3,7 +3,7 @@ import {
   ArrowLeft, Compass, Clock, ShieldCheck, Sparkles, ExternalLink, Globe, Laptop, Layers,
   MapPin, Phone, Star, Search, Calendar, Heart, AlertCircle, Check, X, ShieldAlert, Activity
 } from 'lucide-react';
-import { productService } from '../../services/productService';
+import { productService, getCategoryFallbackImage } from '../../services/productService';
 import { apiFetch } from '../../services/api';
 import hotelMockup from '../../assets/images/hotel_shubha_sai_actual.png';
 import skMockup from '../../assets/images/sk_technologies_mockup.png';
@@ -541,8 +541,9 @@ export default function SubServiceDetails({ title, onBack }) {
                     {/* Hospital Image */}
                     <div className="md:w-5/12 aspect-[4/3] md:aspect-auto overflow-hidden relative border-b md:border-b-0 md:border-r border-slate-100 dark:border-slate-850">
                       <img 
-                        src={hosp.image} 
+                        src={hosp.image || getCategoryFallbackImage(hosp)} 
                         alt={hosp.name} 
+                        onError={(e) => { e.target.onerror = null; e.target.src = getCategoryFallbackImage(hosp); }}
                         className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-500"
                       />
                       <div className="absolute top-3 left-3 bg-[#0b1e36]/80 backdrop-blur-xs text-white text-[9px] font-black px-2 py-0.5 rounded uppercase flex items-center gap-1 border border-white/10">
@@ -654,8 +655,9 @@ export default function SubServiceDetails({ title, onBack }) {
                   {/* Product Image Container */}
                   <div className="relative aspect-square w-full bg-slate-50 dark:bg-slate-950 overflow-hidden">
                     <img
-                      src={product.image}
+                      src={product.image || getCategoryFallbackImage(product)}
                       alt={product.name}
+                      onError={(e) => { e.target.onerror = null; e.target.src = getCategoryFallbackImage(product); }}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                     <span className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-xs text-white text-[9px] font-semibold px-2 py-0.5 rounded select-none">
@@ -971,8 +973,9 @@ export default function SubServiceDetails({ title, onBack }) {
                   {/* Summary card of item being purchased */}
                   <div className="bg-slate-50 dark:bg-slate-950 rounded-2xl p-4 border border-slate-200/50 dark:border-slate-850 flex gap-4 text-left">
                     <img 
-                      src={selectedItemForPurchase.image} 
+                      src={selectedItemForPurchase.image || getCategoryFallbackImage(selectedItemForPurchase)} 
                       alt={selectedItemForPurchase.name} 
+                      onError={(e) => { e.target.onerror = null; e.target.src = getCategoryFallbackImage(selectedItemForPurchase); }}
                       className="w-16 h-16 object-cover rounded-lg border dark:border-slate-800"
                     />
                     <div>
@@ -1093,8 +1096,9 @@ export default function SubServiceDetails({ title, onBack }) {
               {/* Image display */}
               <div className="aspect-video w-full bg-slate-50 dark:bg-slate-950 rounded-2xl overflow-hidden mb-5 border border-slate-150 dark:border-slate-855 flex items-center justify-center p-4">
                 <img 
-                  src={selectedProductForModal.image} 
+                  src={selectedProductForModal.image || getCategoryFallbackImage(selectedProductForModal)} 
                   alt={selectedProductForModal.name} 
+                  onError={(e) => { e.target.onerror = null; e.target.src = getCategoryFallbackImage(selectedProductForModal); }}
                   className="w-full h-full object-contain max-h-[220px]"
                 />
               </div>

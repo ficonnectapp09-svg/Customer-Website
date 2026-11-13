@@ -135,7 +135,16 @@ const inferSubNavbarCategory = (p) => {
 const isDeadImageUrl = (u) => {
   if (!u || typeof u !== 'string') return true;
   const lower = u.trim().toLowerCase();
-  return !lower || lower === 'null' || lower === 'undefined' || lower.includes('connect-vendor.onrender.com') || lower.includes('.onrender.com');
+  return (
+    !lower ||
+    lower === 'null' ||
+    lower === 'undefined' ||
+    lower.includes('connect-vendor') ||
+    lower.includes('api.ficapp.in') ||
+    lower.includes('vendor.ficapp.in') ||
+    lower.includes('uploads/img_') ||
+    (lower.includes('.onrender.com') && !lower.includes('connect-app-ukpk.onrender.com'))
+  );
 };
 
 const extractRawImage = (p) => {
@@ -292,7 +301,7 @@ export const sanitizeImageUrl = (imgUrl, pContext = null) => {
     url.includes('vendor.ficapp.in') ||
     url.includes('/uploads/img_') ||
     url.includes('uploads/img_') ||
-    url.includes('connect-vendor.onrender.com') ||
+    url.includes('connect-vendor') ||
     (url.includes('.onrender.com') && !url.includes('connect-app-ukpk.onrender.com'))
   ) {
     return getCategoryFallbackImage(pContext);
@@ -462,10 +471,15 @@ try {
   if (typeof window !== 'undefined') {
     const saved = window.sessionStorage?.getItem('cached_vendor_products') || window.localStorage?.getItem('cached_vendor_products');
     if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        memoryProductCache = parsed;
-        lastProductsFetchTime = Date.now();
+      if (saved.includes('connect-vendor') || saved.includes('uploads/img_') || saved.includes('api.ficapp.in')) {
+        window.sessionStorage?.removeItem('cached_vendor_products');
+        window.localStorage?.removeItem('cached_vendor_products');
+      } else {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          memoryProductCache = parsed.map(sanitizeProduct);
+          lastProductsFetchTime = Date.now();
+        }
       }
     }
   }
@@ -485,7 +499,10 @@ export const productService = {
   },
 
   getCachedProducts: () => {
-    return memoryProductCache || [];
+    if (Array.isArray(memoryProductCache)) {
+      return memoryProductCache.map(sanitizeProduct);
+    }
+    return [];
   },
 
   getProducts: async (forceRefresh = false) => {

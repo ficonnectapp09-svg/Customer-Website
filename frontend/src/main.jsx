@@ -5,20 +5,33 @@ import App from './App.jsx'
 
 // Clear legacy/mock local storage data on initialization to ensure fresh live backend data sync
 try {
-  if (typeof window !== 'undefined' && window.localStorage) {
-    const keysToPurge = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (
-        key.startsWith('connect_fallback_') ||
-        key.startsWith('connect_vendor_') ||
-        key.startsWith('connect_products_') ||
-        key.startsWith('connect_deleted_')
-      )) {
-        keysToPurge.push(key);
-      }
-    }
-    keysToPurge.forEach(k => localStorage.removeItem(k));
+  if (typeof window !== 'undefined') {
+    ['localStorage', 'sessionStorage'].forEach(storageType => {
+      try {
+        const storage = window[storageType];
+        if (!storage) return;
+        const keysToPurge = [];
+        for (let i = 0; i < storage.length; i++) {
+          const key = storage.key(i);
+          if (!key) continue;
+          if (
+            key.startsWith('connect_fallback_') ||
+            key.startsWith('connect_vendor_') ||
+            key.startsWith('connect_products_') ||
+            key.startsWith('connect_deleted_')
+          ) {
+            keysToPurge.push(key);
+            continue;
+          }
+          // Also purge any cached item containing stale/dead endpoints like connect-vendor
+          const val = storage.getItem(key);
+          if (val && typeof val === 'string' && (val.includes('connect-vendor') || val.includes('uploads/img_') || val.includes('api.ficapp.in'))) {
+            keysToPurge.push(key);
+          }
+        }
+        keysToPurge.forEach(k => storage.removeItem(k));
+      } catch (e) {}
+    });
   }
 } catch (err) {
   // Ignore storage access errors
@@ -79,7 +92,10 @@ const isThirdPartyNoise = (val) => {
     lower.includes('wasm-bindgen') ||
     lower.includes('err_network_io_suspended') ||
     lower.includes('network_io_suspended') ||
-    lower.includes('websocket')
+    lower.includes('websocket') ||
+    lower.includes('connect-vendor') ||
+    lower.includes('err_blocked_by_response') ||
+    lower.includes('notsameorigin')
   );
 };
 

@@ -419,7 +419,7 @@ app.get(['/api/public/products', '/api/products'], async (req, res) => {
           !lower ||
           lower === 'null' ||
           lower === 'undefined' ||
-          lower.includes('connect-vendor.onrender.com') ||
+          lower.includes('connect-vendor') ||
           lower.includes('api.ficapp.in') ||
           lower.includes('vendor.ficapp.in') ||
           lower.includes('/uploads/img_') ||

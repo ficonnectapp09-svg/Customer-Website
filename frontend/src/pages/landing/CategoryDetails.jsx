@@ -19,7 +19,7 @@ Food
 └ Premium Dining
 */
 import React, { useEffect, useState } from 'react';
-import { productService, isRealVendorProduct } from '../../services/productService';
+import { productService, isRealVendorProduct, getCategoryFallbackImage } from '../../services/productService';
 import { ArrowLeft, Star, ChevronRight, Compass, Search, RefreshCw, X } from 'lucide-react';
 import saree1 from '../../assets/images/saree_1.png';
 import saree2 from '../../assets/images/saree_2.png';
@@ -589,8 +589,9 @@ export default function CategoryDetails({ category, onBack, onSubCategoryClick }
                       {/* Product Image Container */}
                       <div className="relative aspect-square w-full bg-slate-50 dark:bg-slate-950 overflow-hidden">
                         <img
-                          src={product.image}
+                          src={product.image || getCategoryFallbackImage(product)}
                           alt={product.name}
+                          onError={(e) => { e.target.onerror = null; e.target.src = getCategoryFallbackImage(product); }}
                           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                         />
                         {product.badge && (
@@ -739,8 +740,9 @@ export default function CategoryDetails({ category, onBack, onSubCategoryClick }
               {/* Image display */}
               <div className="aspect-video w-full bg-slate-50 dark:bg-slate-950 rounded-2xl overflow-hidden mb-5 border border-slate-150 dark:border-slate-850 flex items-center justify-center p-4">
                 <img 
-                  src={selectedProductForModal.image} 
+                  src={selectedProductForModal.image || getCategoryFallbackImage(selectedProductForModal)} 
                   alt={selectedProductForModal.name} 
+                  onError={(e) => { e.target.onerror = null; e.target.src = getCategoryFallbackImage(selectedProductForModal); }}
                   className="w-full h-full object-contain max-h-[220px]"
                 />
               </div>

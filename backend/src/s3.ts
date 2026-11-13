@@ -491,7 +491,7 @@ export function isPersistentImageUrl(url: string | null | undefined): boolean {
   if (lower.includes('localhost') || lower.includes('127.0.0.1')) {
     return false;
   }
-  if (lower.includes('connect-vendor.onrender.com/uploads/')) {
+  if (lower.includes('connect-vendor')) {
     return false;
   }
   return lower.startsWith('http://') || lower.startsWith('https://');
