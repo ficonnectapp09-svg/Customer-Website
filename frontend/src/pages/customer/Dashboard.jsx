@@ -2971,19 +2971,9 @@ export default function CustomerDashboard({
         lastOrdersFetchTimestampRef.current = Date.now() + 15000;
         return;
       }
-      if (!res || (Array.isArray(res) && res.length === 0) || (res.data && Array.isArray(res.data) && res.data.length === 0)) {
-        if (targetId && targetEmail && targetEmail !== targetId && (typeof navigator === 'undefined' || navigator.onLine)) {
-          if (res?.status !== 'error' && res?.statusCode !== 429) {
-            res = await apiFetch(`/orders?customerId=${encodeURIComponent(targetEmail)}`);
-            if (res?.status === 'network_suspended' || res?.status === 'offline') {
-              return;
-            }
-            if (res?.statusCode === 429 || res?.status === 429 || res?.code === 'RATE_LIMIT_EXCEEDED') {
-              lastOrdersFetchTimestampRef.current = Date.now() + 15000;
-              return;
-            }
-          }
-        }
+      // If customerId query parameter triggered 403 IDOR restriction, retry with clean /orders using Bearer token
+      if (res?.statusCode === 403 || res?.status === 403 || res?.code === 'FORBIDDEN_IDOR' || res?.message?.includes('Access denied')) {
+        res = await apiFetch('/orders').catch(() => null);
       }
       if (res) {
         if (Array.isArray(res)) {
@@ -3743,19 +3733,35 @@ export default function CustomerDashboard({
     const handleNewOrder = (data) => {
       if (!data) return;
       const curUser = currentUserRef.current;
-      const curId = String(curUser?.id || curUser?.customerId || activeCustomerId || '').toLowerCase().trim();
       const curEmail = String(curUser?.email || profileEmailRef.current || '').toLowerCase().trim();
       const curPhone = String(curUser?.phone || profilePhoneRef.current || '').replace(/\D/g, '').slice(-10);
 
-      const oCustId = String(data.customer_id || data.customerId || data.memberId || data.user_id || '').toLowerCase().trim();
+      const userIdentifiers = [
+        curUser?.id,
+        curUser?._id,
+        curUser?.customerId,
+        curUser?.registrationId,
+        curUser?.memberId,
+        activeCustomerId
+      ].filter(Boolean).map(s => String(s).toLowerCase().trim());
+
+      const orderCustIdentifiers = [
+        data.customer_id,
+        data.customerId,
+        data.memberId,
+        data.user_id,
+        data.userId
+      ].filter(Boolean).map(s => String(s).toLowerCase().trim());
+
       const oEmail = String(data.customer_email || data.candidateEmail || data.email || '').toLowerCase().trim();
       const oPhone = String(data.customer_phone || data.candidatePhone || data.phone || '').replace(/\D/g, '').slice(-10);
 
-      const isForMe = Boolean(
-        (curId && oCustId && (curId === oCustId || curId.includes(oCustId) || oCustId.includes(curId))) ||
-        (curEmail && oEmail && curEmail === oEmail) ||
-        (curPhone && oPhone && curPhone.length >= 7 && (curPhone.endsWith(oPhone) || oPhone.endsWith(curPhone)))
-      );
+      const idMatch = userIdentifiers.length > 0 && orderCustIdentifiers.length > 0 &&
+        userIdentifiers.some(uid => orderCustIdentifiers.some(oid => uid === oid || uid.includes(oid) || oid.includes(uid)));
+      const emailMatch = Boolean(curEmail && oEmail && curEmail === oEmail);
+      const phoneMatch = Boolean(curPhone && oPhone && curPhone.length >= 7 && (curPhone.endsWith(oPhone) || oPhone.endsWith(curPhone)));
+
+      const isForMe = idMatch || emailMatch || phoneMatch;
 
       if (isForMe) {
         setCustomerOrders(prev => {

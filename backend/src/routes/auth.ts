@@ -1,4 +1,4 @@
-﻿import { uploadToS3 } from '../s3';
+import { uploadToS3 } from '../s3';
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { ObjectId } from 'mongodb';
@@ -2364,21 +2364,33 @@ router.get('/customer-notifications', optionalAuthenticateToken, async (req: Aut
       };
     });
 
-    // Merge and deduplicate notifications
+    // Merge and deduplicate notifications:
+    // Key by canonical business event / orderId to eliminate duplicate records for the same order
     const allNotifsMap = new Map();
-    orderNotifs.forEach((n: any) => allNotifsMap.set(n.id, n));
+
+    // 1. Prioritize explicit notification records from MongoDB collection
     explicitNotifs.forEach((n: any) => {
-      const id = String(n._id || n.id);
-      allNotifsMap.set(id, {
-        id,
+      const rawOrdId = String(n.orderId || n.targetId || n.data?.orderId || '').trim();
+      const dedupeKey = rawOrdId ? `order_${rawOrdId}` : String(n._id || n.id);
+      allNotifsMap.set(dedupeKey, {
+        id: String(n._id || n.id),
+        orderId: rawOrdId || undefined,
         title: n.title || 'Notification',
-        message: n.message || n.text || '',
-        text: n.message || n.text || '',
+        message: n.message || n.text || n.body || '',
+        text: n.message || n.text || n.body || '',
         time: n.createdAt || n.created_at ? new Date(n.createdAt || n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recently',
         date: n.createdAt || n.created_at || new Date().toISOString(),
         read: Boolean(n.read || n.isRead),
-        type: n.type || 'system'
+        type: n.category || n.type || 'order'
       });
+    });
+
+    // 2. Synthesize order notifications only for orders not already covered by explicit records
+    orderNotifs.forEach((n: any) => {
+      const dedupeKey = n.orderId ? `order_${n.orderId}` : n.id;
+      if (!allNotifsMap.has(dedupeKey)) {
+        allNotifsMap.set(dedupeKey, n);
+      }
     });
 
     const notifications = Array.from(allNotifsMap.values()).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());

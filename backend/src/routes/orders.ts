@@ -1494,9 +1494,7 @@ router.post('/', optionalAuthenticateToken, async (req: AuthenticatedRequest, re
 
         const multiCustId = vOrder.customer_id || resolvedCustId || vOrder.customerId || '';
         if (multiCustId) {
-          socketManager.emitToUser('customer', multiCustId, 'new_order_placed', vOrder);
           socketManager.emitToUser('customer', multiCustId, 'order_created', vOrder);
-          socketManager.emitToUser('customer', multiCustId, specificMultiEvent, vOrder);
           fcmPushService.dispatchToCustomer(multiCustId, {
             title: isMultiJob ? 'Job Application Submitted! 💼' : (isMultiBooking ? 'Booking Confirmed! 📅' : 'Order Placed Successfully! 🛍️'),
             body: `${(vOrder.items && vOrder.items[0]?.name) || vOrder.product_details || 'Your order'} (#${vOrder.order_number || vOrderId}) has been placed.`,
@@ -1639,11 +1637,6 @@ router.post('/', optionalAuthenticateToken, async (req: AuthenticatedRequest, re
       socketManager.emitToVendor(vendor_id, 'new_order_received', newOrder);
       socketManager.emitToVendor(vendor_id, specificSingleEvent, newOrder);
     }
-    socketManager.emitToVendor(newOrder.vendor_id, specificSingleEvent, newOrder);
-    if (vendor_id && String(vendor_id) !== String(newOrder.vendor_id)) {
-      socketManager.emitToVendor(vendor_id, specificSingleEvent, newOrder);
-      socketManager.emitToVendor(vendor_id, 'new_order_received', newOrder);
-    }
     socketManager.broadcast('new_order_placed', newOrder);
     socketManager.broadcast(specificSingleEvent, newOrder);
     const targetSingleVid = newOrder.vendor_id || vendor_id;
@@ -1665,12 +1658,10 @@ router.post('/', optionalAuthenticateToken, async (req: AuthenticatedRequest, re
       }).catch(() => {});
     }
 
-    // Cross-platform synchronization: notify customer sessions
+    // Cross-platform synchronization: notify customer sessions (single targeted event to avoid duplicate cascades)
     const cIdTarget = newOrder.customer_id || resolvedCustId || newOrder.customerId || '';
     if (cIdTarget) {
-      socketManager.emitToUser('customer', cIdTarget, 'new_order_placed', newOrder);
       socketManager.emitToUser('customer', cIdTarget, 'order_created', newOrder);
-      socketManager.emitToUser('customer', cIdTarget, specificSingleEvent, newOrder);
       fcmPushService.dispatchToCustomer(cIdTarget, {
         title: isJobType ? 'Job Application Submitted! 💼' : (isBookingType ? 'Booking Confirmed! 📅' : 'Order Placed Successfully! 🛍️'),
         body: `${(newOrder.items && newOrder.items[0]?.name) || newOrder.product_details || 'Your order'} (#${newOrder.order_number || newOrder.id}) has been placed.`,
@@ -1688,9 +1679,7 @@ router.post('/', optionalAuthenticateToken, async (req: AuthenticatedRequest, re
     }
     const uIdTarget = (newOrder as any).user_id;
     if (uIdTarget && uIdTarget !== cIdTarget) {
-      socketManager.emitToUser('customer', uIdTarget, 'new_order_placed', newOrder);
       socketManager.emitToUser('customer', uIdTarget, 'order_created', newOrder);
-      socketManager.emitToUser('customer', uIdTarget, specificSingleEvent, newOrder);
     }
 
     // Publish structured event to Redis message broker & WebSockets
@@ -2011,9 +2000,9 @@ router.post('/:id/rate', optionalAuthenticateToken, async (req: AuthenticatedReq
 });
 
 // PUT: /api/orders/:id/status (Workflow & Business Logic State Transition Security)
-router.put('/:id/status', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+const handleUpdateOrderStatus = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const status = req.body?.status || (req.path.includes('cancel') ? 'Cancelled' : undefined);
 
   const ALLOWED_STATUSES = [
     'Pending', 'Confirmed', 'Preparing', 'Ready', 'Out for Delivery',
@@ -2245,6 +2234,19 @@ router.put('/:id/status', authenticateToken, async (req: AuthenticatedRequest, r
   } catch (error: any) {
     res.status(500).json({ status: 'error', message: error.message });
   }
+};
+
+router.put('/:id/status', authenticateToken, handleUpdateOrderStatus);
+
+// Order Cancellation Aliases (supports both POST and PUT across mobile app and website)
+router.post(['/:id/cancel', '/:id/cancel-order'], authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  req.body = { ...req.body, status: 'Cancelled' };
+  return handleUpdateOrderStatus(req, res);
+});
+
+router.put(['/:id/cancel', '/:id/cancel-order'], authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  req.body = { ...req.body, status: 'Cancelled' };
+  return handleUpdateOrderStatus(req, res);
 });
 
 export default router;
