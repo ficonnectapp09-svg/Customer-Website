@@ -7750,7 +7750,6 @@ export default function CustomerDashboard({
                   setSelectedSubNavbarCategory(val === 'ALL' ? currentMainCategory : val);
                   setSelectedCategories(val === 'ALL' ? [] : [val]);
                   setSelectedProduct(null);
-                  setIsDropdownOpen(false);
                   setHoveredLink(null);
                   if (typeof window !== 'undefined') {
                     try {
@@ -7801,7 +7800,6 @@ export default function CustomerDashboard({
                   setSelectedCategories([]);
                   setSearchQuery('');
                   setSelectedProduct(null);
-                  setIsDropdownOpen(false);
                   setHoveredLink(null);
                   if (typeof window !== 'undefined') {
                     try {
@@ -7846,7 +7844,6 @@ export default function CustomerDashboard({
                       setSelectedCategories([catKey]);
                       setSearchQuery('');
                       setSelectedProduct(null);
-                      setIsDropdownOpen(false);
                       setHoveredLink(null);
                       if (typeof window !== 'undefined') {
                         try {
@@ -7907,7 +7904,6 @@ export default function CustomerDashboard({
                       setSelectedCategories([childTitle]);
                       setSearchQuery('');
                       setSelectedProduct(null);
-                      setIsDropdownOpen(false);
                       setHoveredLink(null);
 
                       if (typeof window !== 'undefined') {
