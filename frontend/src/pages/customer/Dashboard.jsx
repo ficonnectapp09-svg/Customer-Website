@@ -1342,6 +1342,7 @@ export default function CustomerDashboard({
 
   const [adminOffers, setAdminOffers] = useState([]);
   const [adminAds, setAdminAds] = useState([]);
+  const [isLoadingPromotions, setIsLoadingPromotions] = useState(true);
 
   const fetchAdminPromotions = useCallback(async () => {
     try {
@@ -1363,17 +1364,19 @@ export default function CustomerDashboard({
       const resAds = await fetch(urlAds).catch(() => null);
       if (resAds && resAds.ok) {
         const dataAds = await resAds.json();
-        if (Array.isArray(dataAds) && dataAds.length > 0) {
+        if (Array.isArray(dataAds)) {
           setAdminAds(dataAds);
         }
       }
     } catch (err) {
       console.warn("Could not fetch live admin ads:", err);
+    } finally {
+      setIsLoadingPromotions(false);
     }
   }, []);
 
-  // Poll admin promotions every 30 seconds with tab visibility tracking
-  useAutoRefresh(fetchAdminPromotions, 30000);
+  // Poll admin promotions every 15 seconds with tab visibility tracking
+  useAutoRefresh(fetchAdminPromotions, 15000);
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -1794,13 +1797,13 @@ export default function CustomerDashboard({
 
   useEffect(() => {
     if (isHeroBannerHovered) return;
-    const total = (dbBanners?.length || 0) + (adminAds?.length || 0);
+    const total = (Array.isArray(dbBanners) && dbBanners.length > 0) ? dbBanners.length : DEFAULT_HERO_BANNERS.length;
     if (total <= 1) return;
     const timer = setInterval(() => {
       setActiveHeroSlide((prev) => (prev + 1) % total);
     }, 5000);
     return () => clearInterval(timer);
-  }, [dbBanners, adminAds, isHeroBannerHovered]);
+  }, [dbBanners, isHeroBannerHovered]);
 
   // Category-specific Filter States
   const [selectedServiceTypes, setSelectedServiceTypes] = useState([]);
@@ -2926,11 +2929,15 @@ export default function CustomerDashboard({
     socketService.on('categories:updated', onCategoriesUpdated);
     socketService.on('banners:updated', onBannersUpdated);
     socketService.on('offers:updated', onOffersUpdated);
+    socketService.on('ads:updated', onOffersUpdated);
+    socketService.on('campaigns:updated', onOffersUpdated);
 
     return () => {
       socketService.off('categories:updated', onCategoriesUpdated);
       socketService.off('banners:updated', onBannersUpdated);
       socketService.off('offers:updated', onOffersUpdated);
+      socketService.off('ads:updated', onOffersUpdated);
+      socketService.off('campaigns:updated', onOffersUpdated);
     };
   }, [fetchDbCategories, fetchDbBanners, fetchAdminPromotions]);
 
@@ -8559,34 +8566,19 @@ export default function CustomerDashboard({
       ? dbBanners 
       : DEFAULT_HERO_BANNERS;
 
-    const realDbSlides = [
-      ...rawBannerList.map((banner, index) => {
-        const rawImg = banner.imageUrl || banner.image || banner.bannerImage || banner.photo || banner.img || banner.picture || '';
-        return {
-          id: `db-banner-${banner._id || index}`,
-          isDb: true,
-          title: banner.title || banner.name || banner.bannerTitle || banner.header || 'Special Promotion',
-          imageUrl: rawImg ? sanitizeImageUrl(rawImg, { subNavbarCategory: banner.category || banner.mainCategory }) : 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&auto=format&fit=crop&q=80',
-          redirectLink: banner.redirectLink || banner.link || banner.targetUrl || banner.url || (banner.category ? `/${banner.category}` : '/promotions'),
-          targetAudience: banner.targetAudience || 'all',
-          description: banner.description || banner.desc || banner.subtitle || 'Special Promotion Offer',
-          discount: banner.discount || banner.badge || banner.offer || 'CONNECT DEAL'
-        };
-      }),
-      ...(Array.isArray(adminAds) ? adminAds.map((ad, idx) => {
-        const rawImg = ad.imageUrl || ad.image || ad.photo || ad.img || '';
-        return {
-          id: `admin-ad-${ad._id || idx}`,
-          isDb: true,
-          title: ad.title || ad.name || 'Special Sponsored Deal',
-          imageUrl: rawImg ? sanitizeImageUrl(rawImg, { subNavbarCategory: ad.category }) : 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=600',
-          redirectLink: ad.redirectLink || ad.link || '',
-          targetAudience: 'all',
-          description: ad.description || ad.desc || (ad.discount ? `${ad.discount} - Limited Offer` : 'Sponsored Advertisement'),
-          discount: ad.discount || 'SPONSORED'
-        };
-      }) : [])
-    ];
+    const realDbSlides = rawBannerList.map((banner, index) => {
+      const rawImg = banner.imageUrl || banner.image || banner.bannerImage || banner.photo || banner.img || banner.picture || '';
+      return {
+        id: `db-banner-${banner._id || index}`,
+        isDb: true,
+        title: banner.title || banner.name || banner.bannerTitle || banner.header || 'Special Promotion',
+        imageUrl: rawImg ? sanitizeImageUrl(rawImg, { subNavbarCategory: banner.category || banner.mainCategory }) : 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&auto=format&fit=crop&q=80',
+        redirectLink: banner.redirectLink || banner.link || banner.targetUrl || banner.url || (banner.category ? `/${banner.category}` : '/promotions'),
+        targetAudience: banner.targetAudience || 'all',
+        description: banner.description || banner.desc || banner.subtitle || 'Special Promotion Offer',
+        discount: banner.discount || banner.badge || banner.offer || 'CONNECT DEAL'
+      };
+    });
 
     const slides = realDbSlides;
     const totalSlides = slides.length;
@@ -8924,141 +8916,331 @@ export default function CustomerDashboard({
     );
   };
 
-  const handleOfferClick = (offer) => {
-    if (!currentUser) {
-      setIsLoginModalOpen(true);
-      return;
+  const handleCampaignClick = (ad) => {
+    if (!ad) return;
+    if (ad.redirectLink) {
+      let url = ad.redirectLink.trim();
+      const validTabs = ['Food', 'Services', 'Stay', 'Travel', 'Products', 'Daily Needs', 'Jobs'];
+      const matchedTab = validTabs.find(t => t.toLowerCase() === url.toLowerCase());
+      if (matchedTab) {
+        setActiveTab(matchedTab);
+        setSelectedSubNavbarCategory(matchedTab);
+        triggerNotification(`Navigating to ${matchedTab}`);
+        return;
+      }
+      if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('/')) {
+        url = `https://${url}`;
+      }
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+        triggerNotification(`Opening campaign: ${ad.title}`);
+      } else {
+        window.location.href = url;
+      }
+    } else {
+      triggerNotification(`Campaign: ${ad.title}`);
+    }
+  };
+
+  const handleExclusiveOfferClick = (offer) => {
+    if (!offer) return;
+    if (offer.code && navigator.clipboard) {
+      navigator.clipboard.writeText(offer.code).catch(() => {});
     }
     if (offer.redirectLink) {
-      window.open(offer.redirectLink, '_blank', 'noopener,noreferrer');
-      triggerNotification(`Opening sponsored deal: ${offer.desc || offer.title}`);
+      let url = offer.redirectLink.trim();
+      const validTabs = ['Food', 'Services', 'Stay', 'Travel', 'Products', 'Daily Needs', 'Jobs'];
+      const matchedTab = validTabs.find(t => t.toLowerCase() === url.toLowerCase());
+      if (matchedTab) {
+        setActiveTab(matchedTab);
+        setSelectedSubNavbarCategory(matchedTab);
+        triggerNotification(`Coupon code "${offer.code}" copied! Exploring ${matchedTab}`);
+        return;
+      }
+      if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('/')) {
+        url = `https://${url}`;
+      }
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } else {
+        window.location.href = url;
+      }
+      triggerNotification(`Coupon code "${offer.code}" copied! Opening offer...`);
       return;
     }
-    if (navigator.clipboard && offer.code) {
-      navigator.clipboard.writeText(offer.code);
-    }
-    const cat = offer.brand;
+    const cat = offer.category;
     const validTabs = ['Food', 'Services', 'Stay', 'Travel', 'Products', 'Daily Needs', 'Jobs'];
-    if (validTabs.includes(cat)) {
+    if (cat && validTabs.includes(cat)) {
       setActiveTab(cat);
       setSelectedSubNavbarCategory(cat);
     }
-    triggerNotification(`Coupon code "${offer.code}" claimed! ${cat ? `Exploring ${cat} deals.` : ''}`);
+    triggerNotification(`Coupon code "${offer.code}" copied! ${cat ? `Exploring ${cat} deals.` : ''}`);
   };
 
-  const renderExclusiveOffers = () => {
-    const livePromos = [
-      ...(Array.isArray(adminOffers) ? adminOffers : []),
-      ...(Array.isArray(adminAds) ? adminAds.map(ad => ({
-        _id: ad._id,
-        category: 'Sponsored Ad',
-        discount: ad.discount || (ad.mediaType === 'video' ? 'VIDEO AD' : 'SPONSORED'),
-        title: ad.title,
-        desc: ad.title || 'Paid Advertisement Campaign',
-        code: 'ADPROMO',
-        redirectLink: ad.redirectLink || '',
-        imageUrl: ad.imageUrl || 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=250&auto=format&fit=crop&q=80'
-      })) : [])
-    ];
+  const renderSpecialOffersAndPromotions = () => {
+    const now = Date.now();
 
-    const formattedOffers = livePromos.map((o, idx) => {
-      const bgs = [
-        'bg-rose-50/70 dark:bg-[#1a0914] border-rose-100 dark:border-[#3e1422]/50',
-        'bg-blue-50/70 dark:bg-[#06122c] border-blue-100 dark:border-[#11244d]/50',
-        'bg-emerald-50/70 dark:bg-[#041c12] border-emerald-100 dark:border-[#0e3a24]/50',
-        'bg-amber-50/70 dark:bg-[#1e1707] border-amber-100 dark:border-amber-900/50'
-      ];
-      const tagColors = [
-        'bg-rose-500 text-white font-black',
-        'bg-blue-500 text-white font-black',
-        'bg-emerald-500 text-white font-black',
-        'bg-amber-500 text-slate-950 font-black'
-      ];
-      const btnColors = [
-        'bg-rose-500 hover:bg-rose-600 text-white font-black',
-        'bg-blue-600 hover:bg-blue-700 text-white font-black',
-        'bg-emerald-600 hover:bg-emerald-700 text-white font-black',
-        'bg-amber-500 hover:bg-amber-600 text-slate-950 font-black'
-      ];
-
-      return {
-        id: o._id || `ao_${idx}`,
-        brand: o.category || 'Exclusive',
-        discount: o.discount || 'SPECIAL OFFER',
-        desc: o.title || o.desc || 'Exclusive discount deal',
-        code: o.code || 'CONNECT',
-        redirectLink: o.redirectLink || '',
-        bg: bgs[idx % bgs.length],
-        tagColor: tagColors[idx % tagColors.length],
-        btnColor: btnColors[idx % btnColors.length],
-        image: (o.imageUrl && (!o.imageUrl.startsWith('data:image') || o.imageUrl.length >= 2500)) 
-          ? o.imageUrl 
-          : 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=250&auto=format&fit=crop&q=80'
-      };
+    // 1. Filter eligible Paid Advertisement Campaigns (Active, targeted for customers/all, unexpired)
+    const eligibleAds = (Array.isArray(adminAds) ? adminAds : []).filter(ad => {
+      if (!ad || ad.isActive === false) return false;
+      const audience = (ad.targetAudience || 'all').toLowerCase();
+      if (audience !== 'all' && audience !== 'customer') return false;
+      if (ad.startDate && new Date(ad.startDate).getTime() > now) return false;
+      if (ad.endDate && new Date(ad.endDate).getTime() < now) return false;
+      return Boolean(ad.title && (ad.imageUrl || ad.videoUrl || ad.redirectLink));
     });
 
-    if (formattedOffers.length === 0) return null;
+    // 2. Filter eligible Exclusive Offers & Deals (Active, unexpired)
+    const eligibleOffers = (Array.isArray(adminOffers) ? adminOffers : []).filter(offer => {
+      if (!offer || offer.isActive === false) return false;
+      if (offer.endDate && new Date(offer.endDate).getTime() < now) return false;
+      return Boolean(offer.title && (offer.code || offer.discount));
+    });
 
-    const displayOffers = formattedOffers;
+    const hasAds = eligibleAds.length > 0;
+    const hasOffers = eligibleOffers.length > 0;
+
+    // Loading skeleton placeholder on initial load if neither are loaded yet
+    if (isLoadingPromotions && !hasAds && !hasOffers) {
+      return (
+        <div className="space-y-4 text-left w-full animate-pulse">
+          <div className="flex items-center gap-2">
+            <div className="h-4 w-4 rounded-full bg-slate-200 dark:bg-slate-800" />
+            <div className="h-4 w-48 rounded bg-slate-200 dark:bg-slate-800" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map(k => (
+              <div key={k} className="h-36 rounded-3xl bg-slate-100 dark:bg-slate-850 border border-slate-200 dark:border-slate-800" />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // Per requirement: If no active campaigns or offers exist, do not display fake or empty dummy cards
+    if (!hasAds && !hasOffers) {
+      return null;
+    }
 
     return (
-      <div className="space-y-4 text-left w-full">
-        <div className="flex justify-between items-baseline">
-          <h3 className="text-sm font-black text-slate-900 dark:text-white tracking-tight uppercase">Exclusive Offers for You</h3>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-          {displayOffers.map(offer => (
-            <div 
-              key={offer.id} 
-              onClick={() => handleOfferClick(offer)}
-              className={`border rounded-3xl overflow-hidden shadow-xs flex justify-between p-3.5 sm:p-4.5 min-h-[160px] transition-all duration-300 hover:shadow-md hover:scale-[1.01] cursor-pointer ${offer.bg}`}
-            >
-              <div className="flex flex-col justify-between items-start text-left max-w-[62%] sm:max-w-[60%] h-full min-w-0">
-                <div className="space-y-1.5">
-                  <span className={`text-[10px] sm:text-[11px] font-black px-2.5 py-1 rounded-md uppercase tracking-wider ${offer.tagColor}`}>
-                    {offer.discount}
-                  </span>
-                  <p className="text-xs sm:text-sm font-black text-slate-900 dark:text-white leading-snug mt-1 line-clamp-2">
-                    {offer.desc}
-                  </p>
-                </div>
-
-                <div className="space-y-2 w-full mt-2">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase dark:text-slate-500">Code:</span>
-                    <span className="text-[10px] font-black font-mono border-dashed border border-slate-300 dark:border-slate-700 px-2 py-0.5 rounded bg-white/80 dark:bg-slate-900/80 text-slate-800 dark:text-slate-200">
-                      {offer.code}
-                    </span>
-                  </div>
-
-                  <button 
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleOfferClick(offer);
-                    }}
-                    className={`w-full py-1.5 px-3 text-[10.5px] font-black uppercase rounded-xl transition-all cursor-pointer shadow-2xs border-none flex items-center justify-center gap-1.5 ${offer.btnColor || 'bg-amber-500 text-slate-950'}`}
-                  >
-                    <Gift className="w-3.5 h-3.5" />
-                    <span>Claim Offer</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="w-[110px] sm:w-[125px] h-full rounded-2xl overflow-hidden relative shadow-3xs shrink-0 bg-slate-100 flex items-center justify-center">
-                {offer.image ? (
-                  <img src={offer.image} alt={offer.brand} loading="lazy" decoding="async" onError={(e) => { e.target.style.display = 'none'; }} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-slate-100 dark:bg-slate-900/60 flex items-center justify-center p-2 text-center select-none">
-                    <ShoppingBag className="w-6 h-6 text-slate-300 dark:text-slate-600" />
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-black/5" />
-              </div>
+      <div className="space-y-6 text-left w-full">
+        {/* Section Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-150 dark:border-slate-800/80 pb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              <span className="text-[10px] sm:text-[11px] font-black text-amber-500 uppercase tracking-widest">
+                Featured Promotions
+              </span>
             </div>
-          ))}
+            <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight uppercase mt-0.5">
+              Special Offers &amp; Promotions
+            </h3>
+          </div>
+          <div className="flex items-center gap-2">
+            {hasAds && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-900/40">
+                <Sparkles className="w-3 h-3" />
+                {eligibleAds.length} {eligibleAds.length === 1 ? 'Campaign' : 'Campaigns'}
+              </span>
+            )}
+            {hasOffers && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200/60 dark:border-amber-900/40">
+                <Tag className="w-3 h-3" />
+                {eligibleOffers.length} {eligibleOffers.length === 1 ? 'Deal' : 'Deals'}
+              </span>
+            )}
+          </div>
         </div>
+
+        {/* 1. Paid Advertisement Campaigns */}
+        {hasAds && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                Paid Advertisement Campaigns
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {eligibleAds.map((ad, idx) => (
+                <div
+                  key={ad._id || `ad_${idx}`}
+                  onClick={() => handleCampaignClick(ad)}
+                  className="group relative bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xs hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 cursor-pointer flex flex-col justify-between"
+                >
+                  {/* Media Banner */}
+                  <div className="relative aspect-[16/9] w-full bg-slate-100 dark:bg-slate-950 overflow-hidden flex items-center justify-center">
+                    {ad.mediaType === 'video' && ad.videoUrl ? (
+                      <video
+                        src={ad.videoUrl}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    ) : ad.imageUrl ? (
+                      <img
+                        src={ad.imageUrl}
+                        alt={ad.title}
+                        loading="lazy"
+                        decoding="async"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white p-4 text-center">
+                        <Sparkles className="w-8 h-8 opacity-80" />
+                      </div>
+                    )}
+
+                    <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+                      <span className="bg-[#0b1e36]/85 backdrop-blur-xs text-white text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full tracking-wider border border-white/10">
+                        Sponsored
+                      </span>
+                      {ad.mediaType === 'video' && (
+                        <span className="bg-rose-600/90 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider">
+                          Video
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Campaign Body */}
+                  <div className="p-4 flex flex-col justify-between flex-grow space-y-3">
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white line-clamp-2 group-hover:text-amber-500 transition-colors">
+                        {ad.title}
+                      </h4>
+                    </div>
+
+                    <div className="pt-2 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">
+                        Verified Partner
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCampaignClick(ad);
+                        }}
+                        className="inline-flex items-center gap-1 text-[11px] font-black uppercase px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition-colors cursor-pointer border-none shadow-2xs"
+                      >
+                        <span>Explore</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 2. Exclusive Offers & Deals */}
+        {hasOffers && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                Exclusive Offers &amp; Deals
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+              {eligibleOffers.map((offer, idx) => {
+                const bgs = [
+                  'bg-rose-50/70 dark:bg-[#1a0914] border-rose-100 dark:border-[#3e1422]/50',
+                  'bg-blue-50/70 dark:bg-[#06122c] border-blue-100 dark:border-[#11244d]/50',
+                  'bg-emerald-50/70 dark:bg-[#041c12] border-emerald-100 dark:border-[#0e3a24]/50',
+                  'bg-amber-50/70 dark:bg-[#1e1707] border-amber-100 dark:border-amber-900/50'
+                ];
+                const tagColors = [
+                  'bg-rose-500 text-white',
+                  'bg-blue-500 text-white',
+                  'bg-emerald-500 text-white',
+                  'bg-amber-500 text-slate-950'
+                ];
+                const btnColors = [
+                  'bg-rose-500 hover:bg-rose-600 text-white',
+                  'bg-blue-600 hover:bg-blue-700 text-white',
+                  'bg-emerald-600 hover:bg-emerald-700 text-white',
+                  'bg-amber-500 hover:bg-amber-600 text-slate-950'
+                ];
+                const bg = bgs[idx % bgs.length];
+                const tagColor = tagColors[idx % tagColors.length];
+                const btnColor = btnColors[idx % btnColors.length];
+
+                return (
+                  <div
+                    key={offer._id || `offer_${idx}`}
+                    onClick={() => handleExclusiveOfferClick(offer)}
+                    className={`border rounded-3xl overflow-hidden shadow-xs flex justify-between p-4 min-h-[160px] transition-all duration-300 hover:shadow-md hover:scale-[1.01] cursor-pointer ${bg}`}
+                  >
+                    <div className="flex flex-col justify-between items-start text-left max-w-[62%] sm:max-w-[60%] h-full min-w-0">
+                      <div className="space-y-1.5">
+                        <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-md uppercase tracking-wider ${tagColor}`}>
+                          {offer.discount || 'EXCLUSIVE'}
+                        </span>
+                        <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white leading-snug line-clamp-2">
+                          {offer.title}
+                        </h4>
+                        {offer.desc && (
+                          <p className="text-[10.5px] font-medium text-slate-500 dark:text-slate-400 line-clamp-1">
+                            {offer.desc}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="space-y-2 w-full mt-2">
+                        {offer.code && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9.5px] font-bold text-slate-400 uppercase">Code:</span>
+                            <span className="text-[10px] font-black font-mono border-dashed border border-slate-300 dark:border-slate-700 px-2 py-0.5 rounded bg-white/80 dark:bg-slate-900/80 text-slate-800 dark:text-slate-200">
+                              {offer.code}
+                            </span>
+                          </div>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleExclusiveOfferClick(offer);
+                          }}
+                          className={`w-full py-1.5 px-3 text-[10.5px] font-black uppercase rounded-xl transition-all cursor-pointer shadow-2xs border-none flex items-center justify-center gap-1.5 ${btnColor}`}
+                        >
+                          <Gift className="w-3.5 h-3.5" />
+                          <span>Claim Deal</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="w-[105px] sm:w-[115px] h-full rounded-2xl overflow-hidden relative shadow-3xs shrink-0 bg-slate-100 dark:bg-slate-900 flex items-center justify-center">
+                      {offer.imageUrl ? (
+                        <img
+                          src={offer.imageUrl}
+                          alt={offer.title}
+                          loading="lazy"
+                          decoding="async"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-slate-100 dark:bg-slate-900/60 flex items-center justify-center p-2 text-center select-none">
+                          <Tag className="w-6 h-6 text-slate-300 dark:text-slate-600" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/5" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -13654,11 +13836,8 @@ export default function CustomerDashboard({
             {/* 1. Combined Hero Banner */}
             {renderHeroBanner()}
 
-            {/* 2. Top Categories Grid */}
-            {renderTopCategoriesGrid()}
-
-            {/* 3. Exclusive Offers for You */}
-            {renderExclusiveOffers()}
+            {/* 2. Dynamic Admin Managed Special Offers & Promotions (Paid Campaigns & Exclusive Offers) */}
+            {renderSpecialOffersAndPromotions()}
 
             {/* 4. Recommended for You */}
             {renderRecommendedForYou()}

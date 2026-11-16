@@ -185,15 +185,39 @@ router.get(['/public/banners', '/banners', '/public-banners', '/banners/public']
   }
 });
 
+// Helper to get all ads from Mongo collections (ads and advertisements)
+async function getAdsFromMongo(onlyActive = true) {
+  const mongoDb = db.getDb();
+  if (!mongoDb) return [];
+  try {
+    const col1 = mongoDb.collection('ads');
+    const col2 = mongoDb.collection('advertisements');
+
+    const filter = onlyActive ? { isActive: { $ne: false } } : {};
+
+    const ads1 = await col1.find(filter).sort({ createdAt: -1 }).toArray();
+    const ads2 = await col2.find(filter).sort({ createdAt: -1 }).toArray();
+
+    const combinedMap = new Map();
+    [...ads1, ...ads2].forEach((ad: any) => {
+      const key = (ad._id ? ad._id.toString() : '') || ad.title;
+      if (!combinedMap.has(key)) {
+        combinedMap.set(key, ad);
+      }
+    });
+
+    return Array.from(combinedMap.values());
+  } catch (err) {
+    console.error("Error fetching ads from Mongo:", err);
+    return [];
+  }
+}
+
 // GET: /api/admin/public/ads OR /api/admin/ads
 router.get(['/public/ads', '/ads'], async (req: Request, res: Response) => {
   try {
-    const mongoDb = db.getDb();
-    if (mongoDb) {
-      const ads = await mongoDb.collection('ads').find({ isActive: { $ne: false } }).toArray();
-      return res.json(ads);
-    }
-    return res.json([]);
+    const ads = await getAdsFromMongo(true);
+    return res.json(ads);
   } catch (err: any) {
     console.error("Error fetching public ads in backend:", err);
     res.status(500).json({ error: err.message || 'Server error' });
@@ -301,7 +325,7 @@ router.get('/exclusive-offers/all', async (req: Request, res: Response) => {
 // POST: /api/admin/exclusive-offers (Create & Publish Offer)
 router.post('/exclusive-offers', ...adminAuth, async (req: Request, res: Response) => {
   try {
-    const { title, discount, code, desc, category } = req.body;
+    const { title, discount, code, desc, category, imageUrl, redirectLink, endDate } = req.body;
     if (!title || !discount || !code) {
       return res.status(400).json({ error: 'Title, discount, and code are required.' });
     }
@@ -313,6 +337,9 @@ router.post('/exclusive-offers', ...adminAuth, async (req: Request, res: Respons
       code: code.toUpperCase(),
       desc: desc || 'Exclusive privilege offer for active Connect members.',
       category: category || 'General',
+      imageUrl: imageUrl || '',
+      redirectLink: redirectLink || '',
+      endDate: endDate ? new Date(endDate).toISOString() : undefined,
       isActive: true,
       createdAt: new Date().toISOString()
     };
