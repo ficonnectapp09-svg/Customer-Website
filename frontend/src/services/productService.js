@@ -96,6 +96,19 @@ const inferSubNavbarCategory = (p) => {
   const mainCatMatch = matchMainCat(rawMainCat);
   if (mainCatMatch) return mainCatMatch;
 
+  // Priority check for explicit Job listings before food keyword heuristics
+  const isExplicitJob = Boolean(
+    p.jobTitle || p.jobLocation || p.qualification || p.experienceRequired || p.minExperience ||
+    (p.skills && (Array.isArray(p.skills) ? p.skills.length > 0 : String(p.skills).trim().length > 0)) ||
+    ['jobs', 'job'].includes(rawMainCat.toLowerCase()) ||
+    ['jobs', 'job'].includes(rawSubNav.toLowerCase()) ||
+    ['jobs', 'job', 'it', 'non-it'].includes(rawCat.toLowerCase()) ||
+    ['it', 'non-it'].includes(rawSubCat.toLowerCase())
+  );
+  if (isExplicitJob) {
+    return 'Jobs';
+  }
+
   // Disambiguation: Genuine Food keywords (never rely on p.foodType alone as Mongoose schema defaults it to 'Veg' for all collections)
   const isActualFoodKeyword = ['parotta', 'biryani', 'biriyani', 'dosa', 'idli', 'idly', 'thali', 'pizza', 'burger', 'fast food', 'south indian meals', 'meals'].some(k => 
     rawName.toLowerCase().includes(k) || rawSubCat.toLowerCase().includes(k) || rawSubSubCat.toLowerCase().includes(k)

@@ -1289,13 +1289,32 @@ export default function CustomerDashboard({
             updated.category = 'Eggs';
           }
           // Restore true Jobs category if falsely misclassified by remote backend
+          const rawMain = String(p.mainCategory || '').trim().toLowerCase();
+          const rawSubNav = String(p.subNavbarCategory || '').trim().toLowerCase();
+          const rawCat = String(p.category || '').trim().toLowerCase();
+          const rawSub = String(p.subcategory || '').trim().toLowerCase();
+
           const isExplicitJob = Boolean(
-            p.jobTitle || p.jobLocation || p.qualification ||
-            ['data analyst', 'full stack developer', 'data associate', 'system administrator'].some(j => (p.name || '').toLowerCase().includes(j) || (p.subcategory || '').toLowerCase().includes(j))
+            p.jobTitle || p.jobLocation || p.qualification || p.experienceRequired || p.minExperience ||
+            (p.skills && (Array.isArray(p.skills) ? p.skills.length > 0 : String(p.skills).trim().length > 0)) ||
+            (p.salary && typeof p.salary === 'string' && (p.salary.includes('L.P.A') || p.salary.includes('LPA') || p.salary.includes('Per Month') || p.salary.includes('/month'))) ||
+            rawMain === 'jobs' || rawSubNav === 'jobs' || rawCat === 'jobs' || rawCat === 'it' || rawCat === 'non-it' || rawSub === 'it' || rawSub === 'non-it' ||
+            (['full-time', 'part-time', 'internship', 'remote', 'hybrid'].includes(String(p.jobType || p.type || '').trim().toLowerCase()) && (p.jobLocation || p.salary || p.experience || p.qualification || rawMain === 'jobs' || rawSubNav === 'jobs'))
           );
           if (isExplicitJob) {
             updated.mainCategory = 'Jobs';
             updated.subNavbarCategory = 'Jobs';
+            // Restore true category / department if remote backend corrupted it to Food
+            if (rawCat === 'food' || !updated.category || rawCat === 'jobs') {
+              if (rawSub === 'it' || rawSub === 'non-it') {
+                updated.category = p.subcategory;
+              } else if (p.department && p.department.toLowerCase() !== 'food' && p.department.toLowerCase() !== 'jobs') {
+                updated.category = p.department;
+              } else {
+                updated.category = rawSub.includes('associate') || rawSub.includes('admin') ? 'Non-IT' : 'IT';
+              }
+            }
+            delete updated.foodType;
           }
           // Assign foodType (Veg / Non-Veg) for Food items (Never for Jobs)
           if (!isExplicitJob && (p.subNavbarCategory === 'Food' || p.mainCategory === 'Food' || p.category === 'Fine Dining' || p.category === 'Biryani' || p.category === 'Biriyani' || p.tag === 'Food')) {
@@ -4401,18 +4420,18 @@ export default function CustomerDashboard({
       // Valid job category taxonomy from dbCategories or explicit job identifiers
       const isJobsTaxonomy = (
         pCat === 'it' || pCat === 'non-it' || pSub === 'it' || pSub === 'non-it' ||
-        ['data analyst', 'full stack developer', 'data associate', 'system administrator'].some(j => pSub === j || pChild === j || pName.toLowerCase() === j)
+        pMain === 'jobs' || pSubNav === 'jobs' || pCat === 'jobs'
       );
 
       // Exclude physical products and other non-job categories
       if (['products', 'services', 'stay', 'travel', 'daily needs', 'food'].includes(normalizeMainCatName(p.subcategory))) return false;
-      if (['products', 'services', 'stay', 'travel', 'daily needs', 'food'].includes(normalizeMainCatName(p.category)) && pCat !== 'jobs') return false;
+      if (['products', 'services', 'stay', 'travel', 'daily needs', 'food'].includes(normalizeMainCatName(p.category)) && pCat !== 'jobs' && pCat !== 'it' && pCat !== 'non-it') return false;
       if (['products', 'services', 'stay', 'travel', 'daily needs', 'food'].includes(normalizeMainCatName(p.mainCategory)) && pMain !== 'jobs') return false;
       if (['products', 'services', 'stay', 'travel', 'daily needs', 'food'].includes(normalizeMainCatName(p.subNavbarCategory)) && pSubNav !== 'jobs') return false;
 
       const isJobListing = (isJobCardItem(p) || pSubNav === 'jobs' || pMain === 'jobs' || pCat === 'jobs' || isJobsTaxonomy);
 
-      return isJobListing && (p.jobTitle || p.jobLocation || p.qualification || p.experienceRequired || isJobsTaxonomy);
+      return isJobListing;
     }).map(p => {
       const vendorJobType = p.jobType || p.type || p.job_type || p.employmentType || p.workType;
       const vendorExp = p.experience || p.exp || p.jobExperience || p.experience_required || p.experienceRequired || p.minExperience;
@@ -8605,6 +8624,7 @@ export default function CustomerDashboard({
                   setSelectedProduct(null);
                   setActiveTab(cat);
                   setSelectedSubNavbarCategory(cat);
+                  setSidebarActiveCat('ALL');
                   setSelectedCategories([]);
                   setSearchQuery('');
                   if (typeof window !== 'undefined' && window.innerWidth < 768 && cat !== 'Home') {
@@ -9903,7 +9923,7 @@ export default function CustomerDashboard({
       // 1. Level 2 Category / Subcategory hierarchy match (Left Sidebar: ALL, IT, Non-IT)
       let matchesCategoryHierarchy = true;
       const targetSub = (sidebarActiveCat || '').trim();
-      if (targetSub && targetSub !== 'ALL') {
+      if (targetSub && targetSub !== 'ALL' && targetSub.toLowerCase() !== 'jobs') {
         const targetSubNorm = targetSub.toLowerCase();
         const directCat = (job.category || '').toLowerCase();
         const directDept = (job.department || '').toLowerCase();
@@ -9930,7 +9950,7 @@ export default function CustomerDashboard({
       let matchesChildCategory = true;
       if (selectedCategories && selectedCategories.length > 0) {
         matchesChildCategory = selectedCategories.some(selectedCat => {
-          if (!selectedCat || selectedCat === 'ALL') return true;
+          if (!selectedCat || selectedCat === 'ALL' || selectedCat.toLowerCase() === 'jobs') return true;
           const selNorm = selectedCat.toLowerCase();
           if (targetSub && selNorm === targetSub.toLowerCase()) return true; // Handled by Level 2
           const jobSubNorm = (job.subcategory || '').toLowerCase();
