@@ -9066,10 +9066,7 @@ export default function CustomerDashboard({
     if (isLoadingPromotions && !hasAds && !hasOffers) {
       return (
         <div className="space-y-4 text-left w-full animate-pulse">
-          <div className="flex items-center gap-2">
-            <div className="h-4 w-4 rounded-full bg-slate-200 dark:bg-slate-800" />
-            <div className="h-4 w-48 rounded bg-slate-200 dark:bg-slate-800" />
-          </div>
+          <div className="h-4 w-48 rounded bg-slate-200 dark:bg-slate-800" />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[1, 2, 3, 4].map(k => (
               <div key={k} className="h-36 rounded-3xl bg-slate-100 dark:bg-slate-850 border border-slate-200 dark:border-slate-800" />
@@ -9085,133 +9082,94 @@ export default function CustomerDashboard({
     }
 
     return (
-      <div className="space-y-6 text-left w-full">
-        {/* Section Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-150 dark:border-slate-800/80 pb-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-              <span className="text-[10px] sm:text-[11px] font-black text-amber-500 uppercase tracking-widest">
-                Featured Promotions
-              </span>
-            </div>
-            <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight uppercase mt-0.5">
-              Special Offers &amp; Promotions
-            </h3>
-          </div>
-          <div className="flex items-center gap-2">
-            {hasAds && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-900/40">
-                <Sparkles className="w-3 h-3" />
-                {eligibleAds.length} {eligibleAds.length === 1 ? 'Campaign' : 'Campaigns'}
-              </span>
-            )}
-            {hasOffers && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200/60 dark:border-amber-900/40">
-                <Tag className="w-3 h-3" />
-                {eligibleOffers.length} {eligibleOffers.length === 1 ? 'Deal' : 'Deals'}
-              </span>
-            )}
-          </div>
+      <div className="space-y-4 text-left w-full">
+        {/* Section Header: Single-line heading matching 'Recommended for You' */}
+        <div className="flex justify-between items-baseline">
+          <h3 className="text-sm font-black text-slate-900 dark:text-white tracking-tight uppercase">
+            Special Offers &amp; Promotions
+          </h3>
         </div>
 
         {/* 1. Paid Advertisement Campaigns */}
         {hasAds && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                Paid Advertisement Campaigns
-              </span>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {eligibleAds.map((ad, idx) => (
+              <div
+                key={ad._id || `ad_${idx}`}
+                onClick={() => handleCampaignClick(ad)}
+                className="group relative bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xs hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 cursor-pointer flex flex-col justify-between"
+              >
+                {/* Media Banner */}
+                <div className="relative aspect-[16/9] w-full bg-slate-100 dark:bg-slate-950 overflow-hidden flex items-center justify-center">
+                  {ad.mediaType === 'video' && ad.videoUrl ? (
+                    <video
+                      src={ad.videoUrl}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                  ) : ad.imageUrl ? (
+                    <img
+                      src={ad.imageUrl}
+                      alt={ad.title}
+                      loading="lazy"
+                      decoding="async"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white p-4 text-center">
+                      <Sparkles className="w-8 h-8 opacity-80" />
+                    </div>
+                  )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {eligibleAds.map((ad, idx) => (
-                <div
-                  key={ad._id || `ad_${idx}`}
-                  onClick={() => handleCampaignClick(ad)}
-                  className="group relative bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xs hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 cursor-pointer flex flex-col justify-between"
-                >
-                  {/* Media Banner */}
-                  <div className="relative aspect-[16/9] w-full bg-slate-100 dark:bg-slate-950 overflow-hidden flex items-center justify-center">
-                    {ad.mediaType === 'video' && ad.videoUrl ? (
-                      <video
-                        src={ad.videoUrl}
-                        autoPlay
-                        loop
-                        muted
-                        playsInline
-                        className="w-full h-full object-cover"
-                      />
-                    ) : ad.imageUrl ? (
-                      <img
-                        src={ad.imageUrl}
-                        alt={ad.title}
-                        loading="lazy"
-                        decoding="async"
-                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white p-4 text-center">
-                        <Sparkles className="w-8 h-8 opacity-80" />
-                      </div>
+                  <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+                    <span className="bg-[#0b1e36]/85 backdrop-blur-xs text-white text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full tracking-wider border border-white/10">
+                      Sponsored
+                    </span>
+                    {ad.mediaType === 'video' && (
+                      <span className="bg-rose-600/90 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider">
+                        Video
+                      </span>
                     )}
-
-                    <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
-                      <span className="bg-[#0b1e36]/85 backdrop-blur-xs text-white text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full tracking-wider border border-white/10">
-                        Sponsored
-                      </span>
-                      {ad.mediaType === 'video' && (
-                        <span className="bg-rose-600/90 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider">
-                          Video
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Campaign Body */}
-                  <div className="p-4 flex flex-col justify-between flex-grow space-y-3">
-                    <div>
-                      <h4 className="text-sm font-black text-slate-900 dark:text-white line-clamp-2 group-hover:text-amber-500 transition-colors">
-                        {ad.title}
-                      </h4>
-                    </div>
-
-                    <div className="pt-2 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">
-                        Verified Partner
-                      </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCampaignClick(ad);
-                        }}
-                        className="inline-flex items-center gap-1 text-[11px] font-black uppercase px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition-colors cursor-pointer border-none shadow-2xs"
-                      >
-                        <span>Explore</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </button>
-                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
+
+                {/* Campaign Body */}
+                <div className="p-4 flex flex-col justify-between flex-grow space-y-3">
+                  <div>
+                    <h4 className="text-sm font-black text-slate-900 dark:text-white line-clamp-2 group-hover:text-amber-500 transition-colors">
+                      {ad.title}
+                    </h4>
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">
+                      Verified Partner
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCampaignClick(ad);
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-black uppercase px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition-colors cursor-pointer border-none shadow-2xs"
+                    >
+                      <span>Explore</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
         {/* 2. Exclusive Offers & Deals */}
         {hasOffers && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                Exclusive Offers &amp; Deals
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
               {eligibleOffers.map((offer, idx) => {
                 const bgs = [
                   'bg-rose-50/70 dark:bg-[#1a0914] border-rose-100 dark:border-[#3e1422]/50',
@@ -9301,7 +9259,6 @@ export default function CustomerDashboard({
                 );
               })}
             </div>
-          </div>
         )}
       </div>
     );
