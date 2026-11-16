@@ -1345,34 +1345,65 @@ export default function CustomerDashboard({
   const [isLoadingPromotions, setIsLoadingPromotions] = useState(true);
 
   const fetchAdminPromotions = useCallback(async () => {
-    try {
-      const adminBase = getAdminBackendUrl();
-      const targetUrl = adminBase ? `${adminBase}/api/admin/public/exclusive-offers` : '/api/admin/public/exclusive-offers';
-      const resOffers = await fetch(targetUrl).catch(() => null);
-      if (resOffers && resOffers.ok) {
-        const data = await resOffers.json();
-        if (Array.isArray(data)) {
-          setAdminOffers(data);
+    const adminBase = typeof getAdminBackendUrl === 'function' ? getAdminBackendUrl() : '';
+    const mainBackend = typeof getBackendUrl === 'function' ? getBackendUrl() : '';
+
+    // 1. Fetch live exclusive offers with multi-endpoint fallback
+    const offerEndpoints = [
+      adminBase ? `${adminBase}/admin-api/public/exclusive-offers` : '',
+      adminBase ? `${adminBase}/api/admin/public/exclusive-offers` : '',
+      'https://admin-09w3.onrender.com/admin-api/public/exclusive-offers',
+      'https://admin-09w3.onrender.com/api/admin/public/exclusive-offers',
+      mainBackend ? `${mainBackend}/api/admin/public/exclusive-offers` : '',
+      '/api/admin/public/exclusive-offers'
+    ].filter(Boolean);
+
+    for (const url of [...new Set(offerEndpoints)]) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setAdminOffers(data);
+            break;
+          }
         }
+      } catch (err) {
+        // Fallback to next candidate endpoint
       }
-    } catch (err) {
-      console.warn("Could not fetch live admin offers:", err);
     }
 
-    try {
-      const urlAds = `${getAdminBackendUrl()}/api/admin/public/ads`;
-      const resAds = await fetch(urlAds).catch(() => null);
-      if (resAds && resAds.ok) {
-        const dataAds = await resAds.json();
-        if (Array.isArray(dataAds)) {
-          setAdminAds(dataAds);
+    // 2. Fetch live paid ad campaigns with multi-endpoint fallback
+    const adEndpoints = [
+      adminBase ? `${adminBase}/admin-api/public/ads` : '',
+      adminBase ? `${adminBase}/api/admin/public/ads` : '',
+      'https://admin-09w3.onrender.com/admin-api/public/ads',
+      'https://admin-09w3.onrender.com/api/admin/public/ads',
+      mainBackend ? `${mainBackend}/api/admin/public/ads` : '',
+      '/api/admin/public/ads'
+    ].filter(Boolean);
+
+    for (const url of [...new Set(adEndpoints)]) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setAdminAds(data);
+            break;
+          }
         }
+      } catch (err) {
+        // Fallback to next candidate endpoint
       }
-    } catch (err) {
-      console.warn("Could not fetch live admin ads:", err);
-    } finally {
-      setIsLoadingPromotions(false);
     }
+    setIsLoadingPromotions(false);
   }, []);
 
   // Poll admin promotions every 15 seconds with tab visibility tracking
@@ -2916,6 +2947,7 @@ export default function CustomerDashboard({
   useEffect(() => {
     fetchDbCategories();
     fetchDbBanners();
+    fetchAdminPromotions();
 
     const onCategoriesUpdated = () => fetchDbCategories();
     const onBannersUpdated = () => {
