@@ -301,7 +301,7 @@ class FcmPushService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `key=${this.serverKey}`,
+          'Authorization': `key=${activeServerKey}`,
           'Content-Length': Buffer.byteLength(postData),
         },
       };
