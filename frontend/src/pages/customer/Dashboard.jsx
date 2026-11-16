@@ -1349,20 +1349,42 @@ export default function CustomerDashboard({
   // Poll vendor products every 15 seconds with tab visibility tracking
   useAutoRefresh(loadVendorProducts, 15000);
 
-  const [adminOffers, setAdminOffers] = useState([]);
+  const OFFERS_CACHE_KEY = 'fic_customer_exclusive_offers_v2';
+  const getCachedOffers = () => {
+    try {
+      if (typeof window !== 'undefined') {
+        const cached = localStorage.getItem(OFFERS_CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const now = Date.now();
+            const valid = parsed.filter(o => 
+              o && o.isActive !== false &&
+              (!o.endDate || new Date(o.endDate).getTime() > now) &&
+              Boolean(o.title && (o.code || o.discount))
+            );
+            if (valid.length > 0) return valid;
+          }
+        }
+      }
+    } catch (e) {}
+    return [];
+  };
+
+  const [adminOffers, setAdminOffers] = useState(getCachedOffers);
   const [adminAds, setAdminAds] = useState([]);
-  const [isLoadingPromotions, setIsLoadingPromotions] = useState(true);
+  const [isLoadingPromotions, setIsLoadingPromotions] = useState(() => getCachedOffers().length === 0);
 
   const fetchAdminPromotions = useCallback(async () => {
     const adminBase = typeof getAdminBackendUrl === 'function' ? getAdminBackendUrl() : '';
     const mainBackend = typeof getBackendUrl === 'function' ? getBackendUrl() : '';
 
-    // 1. Fetch live exclusive offers with multi-endpoint fallback
+    // Fast-path candidate endpoints prioritized by verified speed
     const offerEndpoints = [
-      adminBase ? `${adminBase}/admin-api/public/exclusive-offers` : '',
       adminBase ? `${adminBase}/api/admin/public/exclusive-offers` : '',
-      'https://admin-09w3.onrender.com/admin-api/public/exclusive-offers',
+      adminBase ? `${adminBase}/admin-api/public/exclusive-offers` : '',
       'https://admin-09w3.onrender.com/api/admin/public/exclusive-offers',
+      'https://admin-09w3.onrender.com/admin-api/public/exclusive-offers',
       mainBackend ? `${mainBackend}/api/admin/public/exclusive-offers` : '',
       '/api/admin/public/exclusive-offers'
     ].filter(Boolean);
@@ -1370,13 +1392,18 @@ export default function CustomerDashboard({
     for (const url of [...new Set(offerEndpoints)]) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
         const res = await fetch(url, { signal: controller.signal });
         clearTimeout(timeoutId);
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
             setAdminOffers(data);
+            try {
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(OFFERS_CACHE_KEY, JSON.stringify(data));
+              }
+            } catch (e) {}
             break;
           }
         }
@@ -1385,22 +1412,20 @@ export default function CustomerDashboard({
       }
     }
 
-    // 2. Fetch live paid ad campaigns with multi-endpoint fallback
+    // Immediately conclude offers loading state without blocking on ads
+    setIsLoadingPromotions(false);
+
+    // Non-blocking background fetch for ads in case required
     const adEndpoints = [
-      adminBase ? `${adminBase}/admin-api/public/ads` : '',
       adminBase ? `${adminBase}/api/admin/public/ads` : '',
-      'https://admin-09w3.onrender.com/admin-api/public/ads',
+      adminBase ? `${adminBase}/admin-api/public/ads` : '',
       'https://admin-09w3.onrender.com/api/admin/public/ads',
-      mainBackend ? `${mainBackend}/api/admin/public/ads` : '',
-      '/api/admin/public/ads'
+      'https://admin-09w3.onrender.com/admin-api/public/ads'
     ].filter(Boolean);
 
     for (const url of [...new Set(adEndpoints)]) {
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
-        const res = await fetch(url, { signal: controller.signal });
-        clearTimeout(timeoutId);
+        const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
@@ -1409,10 +1434,9 @@ export default function CustomerDashboard({
           }
         }
       } catch (err) {
-        // Fallback to next candidate endpoint
+        // Fallback
       }
     }
-    setIsLoadingPromotions(false);
   }, []);
 
   // Poll admin promotions every 15 seconds with tab visibility tracking
@@ -2964,6 +2988,7 @@ export default function CustomerDashboard({
       fetchDbBanners();
     };
     const onOffersUpdated = () => {
+      try { localStorage.removeItem(OFFERS_CACHE_KEY); } catch (e) {}
       if (typeof fetchAdminPromotions === 'function') fetchAdminPromotions();
     };
 
@@ -9164,7 +9189,8 @@ export default function CustomerDashboard({
                         <img
                           src={offer.imageUrl}
                           alt={offer.title}
-                          loading="lazy"
+                          loading={idx < 4 ? "eager" : "lazy"}
+                          fetchPriority={idx < 4 ? "high" : "auto"}
                           decoding="async"
                           onError={(e) => { e.currentTarget.style.display = 'none'; }}
                           className="w-full h-full object-cover"
