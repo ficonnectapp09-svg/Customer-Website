@@ -89,25 +89,27 @@ const inferSubNavbarCategory = (p) => {
     return null;
   };
 
-  // 1. Check explicit canonical fields first (subNavbarCategory & mainCategory)
+  // Priority check for explicit Job listings before canonical overrides or food keyword heuristics
+  const isExplicitJob = Boolean(
+    p.jobTitle || p.jobLocation || p.qualification || p.experienceRequired || p.minExperience ||
+    (p.skills && (Array.isArray(p.skills) ? p.skills.length > 0 : String(p.skills).trim().length > 0)) ||
+    (p.salary && typeof p.salary === 'string' && (p.salary.includes('L.P.A') || p.salary.includes('LPA') || p.salary.includes('Per Month') || p.salary.includes('/month'))) ||
+    ['jobs', 'job'].includes(rawMainCat.toLowerCase()) ||
+    ['jobs', 'job'].includes(rawSubNav.toLowerCase()) ||
+    ['jobs', 'job', 'it', 'non-it'].includes(rawCat.toLowerCase()) ||
+    ['it', 'non-it'].includes(rawSubCat.toLowerCase()) ||
+    (['full-time', 'part-time', 'internship', 'remote', 'hybrid'].includes(rawType.toLowerCase()) && (p.jobLocation || p.salary || p.experience || p.qualification || ['jobs', 'job'].includes(rawMainCat.toLowerCase()) || ['jobs', 'job'].includes(rawSubNav.toLowerCase())))
+  );
+  if (isExplicitJob) {
+    return 'Jobs';
+  }
+
+  // 1. Check explicit canonical fields next (subNavbarCategory & mainCategory)
   const subNavMatch = matchMainCat(rawSubNav);
   if (subNavMatch) return subNavMatch;
 
   const mainCatMatch = matchMainCat(rawMainCat);
   if (mainCatMatch) return mainCatMatch;
-
-  // Priority check for explicit Job listings before food keyword heuristics
-  const isExplicitJob = Boolean(
-    p.jobTitle || p.jobLocation || p.qualification || p.experienceRequired || p.minExperience ||
-    (p.skills && (Array.isArray(p.skills) ? p.skills.length > 0 : String(p.skills).trim().length > 0)) ||
-    ['jobs', 'job'].includes(rawMainCat.toLowerCase()) ||
-    ['jobs', 'job'].includes(rawSubNav.toLowerCase()) ||
-    ['jobs', 'job', 'it', 'non-it'].includes(rawCat.toLowerCase()) ||
-    ['it', 'non-it'].includes(rawSubCat.toLowerCase())
-  );
-  if (isExplicitJob) {
-    return 'Jobs';
-  }
 
   // Disambiguation: Genuine Food keywords (never rely on p.foodType alone as Mongoose schema defaults it to 'Veg' for all collections)
   const isActualFoodKeyword = ['parotta', 'biryani', 'biriyani', 'dosa', 'idli', 'idly', 'thali', 'pizza', 'burger', 'fast food', 'south indian meals', 'meals'].some(k => 
@@ -406,6 +408,24 @@ const sanitizeProduct = (p) => {
   // Infer category context first for fallback selection if needed
   updated.subNavbarCategory = inferSubNavbarCategory(updated);
 
+  // If classified as Jobs, guarantee mainCategory and category alignment
+  if (updated.subNavbarCategory === 'Jobs') {
+    updated.mainCategory = 'Jobs';
+    const cLower = String(updated.category || '').toLowerCase().trim();
+    const sLower = String(updated.subcategory || '').toLowerCase().trim();
+    if (cLower === 'food' || cLower === 'jobs' || !updated.category) {
+      if (sLower === 'it' || sLower === 'non-it') {
+        updated.category = updated.subcategory;
+      } else if (updated.department && updated.department.toLowerCase() !== 'food' && updated.department.toLowerCase() !== 'jobs') {
+        updated.category = updated.department;
+      } else {
+        const isNonIt = sLower.includes('associate') || sLower.includes('admin') || updated.name?.toLowerCase().includes('associate') || updated.name?.toLowerCase().includes('admin');
+        updated.category = isNonIt ? 'Non-IT' : 'IT';
+      }
+    }
+    delete updated.foodType;
+  }
+
   // Extract raw vendor uploaded image
   const rawImg = extractRawImage(p);
   updated.image = sanitizeImageUrl(rawImg, updated);
@@ -479,14 +499,21 @@ let activeGetProductsPromise = null;
 let memoryProductCache = null;
 let lastProductsFetchTime = 0;
 const CACHE_FRESH_MS = 20000;
+const PRODUCTS_CACHE_KEY = 'cached_vendor_products_v4';
 
 try {
   if (typeof window !== 'undefined') {
-    const saved = window.sessionStorage?.getItem('cached_vendor_products') || window.localStorage?.getItem('cached_vendor_products');
+    // Purge deprecated older cache keys
+    ['cached_vendor_products', 'cached_vendor_products_v2', 'cached_vendor_products_v3'].forEach(k => {
+      window.sessionStorage?.removeItem(k);
+      window.localStorage?.removeItem(k);
+    });
+
+    const saved = window.sessionStorage?.getItem(PRODUCTS_CACHE_KEY) || window.localStorage?.getItem(PRODUCTS_CACHE_KEY);
     if (saved) {
       if (saved.includes('connect-vendor') || saved.includes('uploads/img_') || saved.includes('api.ficapp.in')) {
-        window.sessionStorage?.removeItem('cached_vendor_products');
-        window.localStorage?.removeItem('cached_vendor_products');
+        window.sessionStorage?.removeItem(PRODUCTS_CACHE_KEY);
+        window.localStorage?.removeItem(PRODUCTS_CACHE_KEY);
       } else {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -505,8 +532,10 @@ export const productService = {
     lastProductsFetchTime = 0;
     try {
       if (typeof window !== 'undefined') {
-        window.sessionStorage?.removeItem('cached_vendor_products');
-        window.localStorage?.removeItem('cached_vendor_products');
+        ['cached_vendor_products', 'cached_vendor_products_v2', 'cached_vendor_products_v3', PRODUCTS_CACHE_KEY].forEach(k => {
+          window.sessionStorage?.removeItem(k);
+          window.localStorage?.removeItem(k);
+        });
       }
     } catch (e) {}
   },
@@ -582,8 +611,8 @@ export const productService = {
             lastProductsFetchTime = Date.now();
             try {
               if (typeof window !== 'undefined') {
-                window.sessionStorage?.setItem('cached_vendor_products', JSON.stringify(fastestProducts));
-                window.localStorage?.setItem('cached_vendor_products', JSON.stringify(fastestProducts));
+                window.sessionStorage?.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(fastestProducts));
+                window.localStorage?.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(fastestProducts));
               }
             } catch (e) {}
             return { success: true, products: fastestProducts, source: 'live' };
@@ -610,8 +639,8 @@ export const productService = {
                     lastProductsFetchTime = Date.now();
                     try {
                       if (typeof window !== 'undefined') {
-                        window.sessionStorage?.setItem('cached_vendor_products', JSON.stringify(vendorProducts));
-                        window.localStorage?.setItem('cached_vendor_products', JSON.stringify(vendorProducts));
+                        window.sessionStorage?.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(vendorProducts));
+                        window.localStorage?.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(vendorProducts));
                       }
                     } catch (e) {}
                     return { success: true, products: vendorProducts, source: 'live' };

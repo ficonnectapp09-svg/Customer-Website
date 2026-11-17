@@ -1272,92 +1272,95 @@ export default function CustomerDashboard({
   const [isDescExpanded, setIsDescExpanded] = useState(false);
   const [isPreviewResumeOpen, setIsPreviewResumeOpen] = useState(false);
 
+  const patchJobAndVendorProduct = (p) => {
+    if (!p) return p;
+    const updated = { ...p };
+    // Correct Eggs category
+    if (p.name && p.name.toLowerCase().includes('egg') && p.category === 'Rice') {
+      updated.category = 'Eggs';
+    }
+    // Restore true Jobs category if falsely misclassified by remote backend
+    const rawMain = String(p.mainCategory || '').trim().toLowerCase();
+    const rawSubNav = String(p.subNavbarCategory || '').trim().toLowerCase();
+    const rawCat = String(p.category || '').trim().toLowerCase();
+    const rawSub = String(p.subcategory || '').trim().toLowerCase();
+
+    const isExplicitJob = Boolean(
+      p.jobTitle || p.jobLocation || p.qualification || p.experienceRequired || p.minExperience ||
+      (p.skills && (Array.isArray(p.skills) ? p.skills.length > 0 : String(p.skills).trim().length > 0)) ||
+      (p.salary && typeof p.salary === 'string' && (p.salary.includes('L.P.A') || p.salary.includes('LPA') || p.salary.includes('Per Month') || p.salary.includes('/month'))) ||
+      rawMain === 'jobs' || rawSubNav === 'jobs' || rawCat === 'jobs' || rawCat === 'it' || rawCat === 'non-it' || rawSub === 'it' || rawSub === 'non-it' ||
+      (['full-time', 'part-time', 'internship', 'remote', 'hybrid'].includes(String(p.jobType || p.type || '').trim().toLowerCase()) && (p.jobLocation || p.salary || p.experience || p.qualification || rawMain === 'jobs' || rawSubNav === 'jobs'))
+    );
+    if (isExplicitJob) {
+      updated.mainCategory = 'Jobs';
+      updated.subNavbarCategory = 'Jobs';
+      // Restore true category / department if remote backend corrupted it to Food
+      if (rawCat === 'food' || !updated.category || rawCat === 'jobs') {
+        if (rawSub === 'it' || rawSub === 'non-it') {
+          updated.category = p.subcategory;
+        } else if (p.department && p.department.toLowerCase() !== 'food' && p.department.toLowerCase() !== 'jobs') {
+          updated.category = p.department;
+        } else {
+          updated.category = rawSub.includes('associate') || rawSub.includes('admin') ? 'Non-IT' : 'IT';
+        }
+      }
+      delete updated.foodType;
+    }
+    // Assign foodType (Veg / Non-Veg) for Food items (Never for Jobs)
+    if (!isExplicitJob && (p.subNavbarCategory === 'Food' || p.mainCategory === 'Food' || p.category === 'Fine Dining' || p.category === 'Biryani' || p.category === 'Biriyani' || p.tag === 'Food')) {
+      const nameLower = (p.name || '').toLowerCase();
+      const descLower = (p.description || '').toLowerCase();
+      const catLower = (p.category || '').toLowerCase();
+      const ftLower = (p.foodType || p.dietary || '').toLowerCase();
+
+      const isExplicitlyNonVeg = ftLower.includes('non') || p.isVeg === false || p.veg === false;
+      const isNonVegKeyword = 
+        nameLower.includes('chicken') || 
+        nameLower.includes('mutton') || 
+        nameLower.includes('egg') || 
+        nameLower.includes('fish') || 
+        nameLower.includes('meat') || 
+        nameLower.includes('prawn') ||
+        nameLower.includes('crab') ||
+        nameLower.includes('non-veg') ||
+        nameLower.includes('non veg') ||
+        catLower.includes('non-veg') ||
+        catLower.includes('non veg') ||
+        descLower.includes('chicken') ||
+        descLower.includes('mutton') ||
+        ((nameLower.includes('biryani') || nameLower.includes('biriyani')) && !nameLower.includes('veg') && !descLower.includes('veg biryani') && !descLower.includes('veg biriyani'));
+
+      if (isExplicitlyNonVeg || isNonVegKeyword) {
+        updated.foodType = 'Non-Veg';
+      } else {
+        updated.foodType = 'Veg';
+      }
+    }
+    // Patch Travel items with real fromCity, toCity, busType, busClass
+    if (p.subNavbarCategory === 'Travel' || p.mainCategory === 'Travel' || (p.category || '').toLowerCase().includes('travel')) {
+      const pts = extractVendorTravelPoints(p);
+      const primaryDrop = p.dropPoint || p.drop_point || p.droppingPoint || p.dropping_point || p.destination || pts.droppingPoints[0]?.name || p.toCity;
+      const primaryBoard = p.boardingPoint || p.boarding_point || p.pickupPoint || p.pickup_point || pts.boardingPoints[0]?.name || p.fromCity;
+      updated.fromCity = p.fromCity || primaryBoard || p.city || 'Bangalore';
+      updated.toCity = p.toCity || primaryDrop || '';
+      updated.busType = (p.description?.toLowerCase().includes('non-ac') || p.name?.toLowerCase().includes('non-ac')) ? 'Non-AC' : 'AC';
+      updated.busClass = (p.description?.toLowerCase().includes('seater') || p.name?.toLowerCase().includes('seater')) ? 'Seater' : 'Sleeper';
+    }
+    return updated;
+  };
+
   const loadVendorProducts = useCallback(async () => {
     try {
       const cached = productService.getCachedProducts();
       if (Array.isArray(cached) && cached.length > 0) {
-        setProducts(cached);
+        setProducts(cached.map(patchJobAndVendorProduct));
         setIsLoadingProducts(false);
       }
       const res = await productService.getProducts(false);
       setIsLoadingProducts(false);
       if (res && res.success && Array.isArray(res.products)) {
-        const patched = res.products.map(p => {
-          const updated = { ...p };
-          // Correct Eggs category
-          if (p.name && p.name.toLowerCase().includes('egg') && p.category === 'Rice') {
-            updated.category = 'Eggs';
-          }
-          // Restore true Jobs category if falsely misclassified by remote backend
-          const rawMain = String(p.mainCategory || '').trim().toLowerCase();
-          const rawSubNav = String(p.subNavbarCategory || '').trim().toLowerCase();
-          const rawCat = String(p.category || '').trim().toLowerCase();
-          const rawSub = String(p.subcategory || '').trim().toLowerCase();
-
-          const isExplicitJob = Boolean(
-            p.jobTitle || p.jobLocation || p.qualification || p.experienceRequired || p.minExperience ||
-            (p.skills && (Array.isArray(p.skills) ? p.skills.length > 0 : String(p.skills).trim().length > 0)) ||
-            (p.salary && typeof p.salary === 'string' && (p.salary.includes('L.P.A') || p.salary.includes('LPA') || p.salary.includes('Per Month') || p.salary.includes('/month'))) ||
-            rawMain === 'jobs' || rawSubNav === 'jobs' || rawCat === 'jobs' || rawCat === 'it' || rawCat === 'non-it' || rawSub === 'it' || rawSub === 'non-it' ||
-            (['full-time', 'part-time', 'internship', 'remote', 'hybrid'].includes(String(p.jobType || p.type || '').trim().toLowerCase()) && (p.jobLocation || p.salary || p.experience || p.qualification || rawMain === 'jobs' || rawSubNav === 'jobs'))
-          );
-          if (isExplicitJob) {
-            updated.mainCategory = 'Jobs';
-            updated.subNavbarCategory = 'Jobs';
-            // Restore true category / department if remote backend corrupted it to Food
-            if (rawCat === 'food' || !updated.category || rawCat === 'jobs') {
-              if (rawSub === 'it' || rawSub === 'non-it') {
-                updated.category = p.subcategory;
-              } else if (p.department && p.department.toLowerCase() !== 'food' && p.department.toLowerCase() !== 'jobs') {
-                updated.category = p.department;
-              } else {
-                updated.category = rawSub.includes('associate') || rawSub.includes('admin') ? 'Non-IT' : 'IT';
-              }
-            }
-            delete updated.foodType;
-          }
-          // Assign foodType (Veg / Non-Veg) for Food items (Never for Jobs)
-          if (!isExplicitJob && (p.subNavbarCategory === 'Food' || p.mainCategory === 'Food' || p.category === 'Fine Dining' || p.category === 'Biryani' || p.category === 'Biriyani' || p.tag === 'Food')) {
-            const nameLower = (p.name || '').toLowerCase();
-            const descLower = (p.description || '').toLowerCase();
-            const catLower = (p.category || '').toLowerCase();
-            const ftLower = (p.foodType || p.dietary || '').toLowerCase();
-
-            const isExplicitlyNonVeg = ftLower.includes('non') || p.isVeg === false || p.veg === false;
-            const isNonVegKeyword = 
-              nameLower.includes('chicken') || 
-              nameLower.includes('mutton') || 
-              nameLower.includes('egg') || 
-              nameLower.includes('fish') || 
-              nameLower.includes('meat') || 
-              nameLower.includes('prawn') ||
-              nameLower.includes('crab') ||
-              nameLower.includes('non-veg') ||
-              nameLower.includes('non veg') ||
-              catLower.includes('non-veg') ||
-              catLower.includes('non veg') ||
-              descLower.includes('chicken') ||
-              descLower.includes('mutton') ||
-              ((nameLower.includes('biryani') || nameLower.includes('biriyani')) && !nameLower.includes('veg') && !descLower.includes('veg biryani') && !descLower.includes('veg biriyani'));
-
-            if (isExplicitlyNonVeg || isNonVegKeyword) {
-              updated.foodType = 'Non-Veg';
-            } else {
-              updated.foodType = 'Veg';
-            }
-          }
-          // Patch Travel items with real fromCity, toCity, busType, busClass
-          if (p.subNavbarCategory === 'Travel' || p.mainCategory === 'Travel' || (p.category || '').toLowerCase().includes('travel')) {
-            const pts = extractVendorTravelPoints(p);
-            const primaryDrop = p.dropPoint || p.drop_point || p.droppingPoint || p.dropping_point || p.destination || pts.droppingPoints[0]?.name || p.toCity;
-            const primaryBoard = p.boardingPoint || p.boarding_point || p.pickupPoint || p.pickup_point || pts.boardingPoints[0]?.name || p.fromCity;
-            updated.fromCity = p.fromCity || primaryBoard || p.city || 'Bangalore';
-            updated.toCity = p.toCity || primaryDrop || '';
-            updated.busType = (p.description?.toLowerCase().includes('non-ac') || p.name?.toLowerCase().includes('non-ac')) ? 'Non-AC' : 'AC';
-            updated.busClass = (p.description?.toLowerCase().includes('seater') || p.name?.toLowerCase().includes('seater')) ? 'Seater' : 'Sleeper';
-          }
-          return updated;
-        });
+        const patched = res.products.map(patchJobAndVendorProduct);
         setProducts(patched);
       }
     } catch (err) {
@@ -1748,19 +1751,36 @@ export default function CustomerDashboard({
           hasInitialUrlSynced.current = true;
         }
         if (subParam) {
-          setSidebarActiveCat(subParam);
+          const cleanSub = decodeURIComponent(subParam).replace(/\+/g, ' ').trim();
+          setSidebarActiveCat(cleanSub);
         }
         if (childParam) {
-          setSelectedSubNavbarCategory(childParam);
-          setSelectedCategories([childParam]);
+          const cleanChild = decodeURIComponent(childParam).replace(/\+/g, ' ').trim();
+          setSelectedSubNavbarCategory(cleanChild);
+          setSelectedCategories([cleanChild]);
+          // If subParam was not in URL, infer and sync sidebarActiveCat from dbCategories
+          if (!subParam && Array.isArray(dbCategories) && dbCategories.length > 0) {
+            const match = dbCategories.find(c => 
+              c && c.isActive !== false && !c.isDeleted &&
+              ((c.subSubcategory && c.subSubcategory.toLowerCase() === cleanChild.toLowerCase()) ||
+               (c.name && c.name.toLowerCase() === cleanChild.toLowerCase()))
+            );
+            if (match && match.subcategory) {
+              setSidebarActiveCat(match.subcategory);
+            }
+          }
           hasInitialUrlSynced.current = true;
         } else if (catIdParam && Array.isArray(dbCategories) && dbCategories.length > 0) {
           const match = dbCategories.find(c => c._id === catIdParam || c.id === catIdParam);
           if (match) {
             const resolvedName = match.subSubcategory || match.subcategory || match.name;
             if (resolvedName) {
-              setSelectedSubNavbarCategory(resolvedName);
-              setSelectedCategories([resolvedName]);
+              const cleanResolved = decodeURIComponent(resolvedName).replace(/\+/g, ' ').trim();
+              setSelectedSubNavbarCategory(cleanResolved);
+              setSelectedCategories([cleanResolved]);
+              if (match.subcategory) {
+                setSidebarActiveCat(match.subcategory);
+              }
               hasInitialUrlSynced.current = true;
             }
           }
@@ -1777,12 +1797,14 @@ export default function CustomerDashboard({
       if (e.state && e.state.tab) {
         setActiveTab(e.state.tab);
         if (e.state.secondLevel) {
-          setSidebarActiveCat(e.state.secondLevel);
+          const cleanSecond = decodeURIComponent(e.state.secondLevel).replace(/\+/g, ' ').trim();
+          setSidebarActiveCat(cleanSecond);
         }
         if (e.state.subCategory || e.state.childCategory) {
           const target = e.state.childCategory || e.state.subCategory;
-          setSelectedSubNavbarCategory(target);
-          setSelectedCategories([target]);
+          const cleanTarget = decodeURIComponent(target).replace(/\+/g, ' ').trim();
+          setSelectedSubNavbarCategory(cleanTarget);
+          setSelectedCategories([cleanTarget]);
         }
       } else if (typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
@@ -1790,10 +1812,14 @@ export default function CustomerDashboard({
         const childParam = params.get('child') || params.get('subCategory');
         const subParam = params.get('sub');
         if (tabParam) setActiveTab(tabParam);
-        if (subParam) setSidebarActiveCat(subParam);
+        if (subParam) {
+          const cleanSub = decodeURIComponent(subParam).replace(/\+/g, ' ').trim();
+          setSidebarActiveCat(cleanSub);
+        }
         if (childParam) {
-          setSelectedSubNavbarCategory(childParam);
-          setSelectedCategories([childParam]);
+          const cleanChild = decodeURIComponent(childParam).replace(/\+/g, ' ').trim();
+          setSelectedSubNavbarCategory(cleanChild);
+          setSelectedCategories([cleanChild]);
         }
       }
     };
@@ -9924,19 +9950,19 @@ export default function CustomerDashboard({
       let matchesCategoryHierarchy = true;
       const targetSub = (sidebarActiveCat || '').trim();
       if (targetSub && targetSub !== 'ALL' && targetSub.toLowerCase() !== 'jobs') {
-        const targetSubNorm = targetSub.toLowerCase();
-        const directCat = (job.category || '').toLowerCase();
-        const directDept = (job.department || '').toLowerCase();
-        const directSub = (job.subcategory || '').toLowerCase();
+        const targetSubNorm = targetSub.replace(/\+/g, ' ').trim().toLowerCase();
+        const directCat = (job.category || '').replace(/\+/g, ' ').trim().toLowerCase();
+        const directDept = (job.department || '').replace(/\+/g, ' ').trim().toLowerCase();
+        const directSub = (job.subcategory || '').replace(/\+/g, ' ').trim().toLowerCase();
 
         // Check matching child categories in dbCategories tree
         const matchingTreeChildren = (dbCategories || []).filter(c => 
           c && c.isActive !== false && !c.isDeleted &&
-          (c.subcategory || '').toLowerCase() === targetSubNorm
-        ).map(c => (c.subSubcategory || c.name || '').toLowerCase());
+          (c.subcategory || '').replace(/\+/g, ' ').trim().toLowerCase() === targetSubNorm
+        ).map(c => (c.subSubcategory || c.name || '').replace(/\+/g, ' ').trim().toLowerCase());
 
         const matchesChildInTree = matchingTreeChildren.some(ch => 
-          ch && (directSub.includes(ch) || (job.title || '').toLowerCase().includes(ch))
+          ch && (directSub.includes(ch) || (job.title || '').replace(/\+/g, ' ').trim().toLowerCase().includes(ch))
         );
 
         matchesCategoryHierarchy = 
@@ -9951,13 +9977,19 @@ export default function CustomerDashboard({
       if (selectedCategories && selectedCategories.length > 0) {
         matchesChildCategory = selectedCategories.some(selectedCat => {
           if (!selectedCat || selectedCat === 'ALL' || selectedCat.toLowerCase() === 'jobs') return true;
-          const selNorm = selectedCat.toLowerCase();
-          if (targetSub && selNorm === targetSub.toLowerCase()) return true; // Handled by Level 2
-          const jobSubNorm = (job.subcategory || '').toLowerCase();
-          const jobCatNorm = (job.category || '').toLowerCase();
-          const jobTitleNorm = (job.title || '').toLowerCase();
-          return jobSubNorm === selNorm || jobCatNorm === selNorm || jobTitleNorm.includes(selNorm) || jobSubNorm.includes(selNorm);
+          const selNorm = selectedCat.replace(/\+/g, ' ').trim().toLowerCase();
+          if (targetSub && selNorm === targetSub.replace(/\+/g, ' ').trim().toLowerCase()) return true; // Handled by Level 2
+          const jobSubNorm = (job.subcategory || '').replace(/\+/g, ' ').trim().toLowerCase();
+          const jobCatNorm = (job.category || '').replace(/\+/g, ' ').trim().toLowerCase();
+          const jobTitleNorm = (job.title || '').replace(/\+/g, ' ').trim().toLowerCase();
+          const jobSubSubNorm = (job.subSubcategory || '').replace(/\+/g, ' ').trim().toLowerCase();
+          return jobSubNorm === selNorm || jobCatNorm === selNorm || jobTitleNorm.includes(selNorm) || jobSubNorm.includes(selNorm) || (jobSubSubNorm && jobSubSubNorm === selNorm);
         });
+      }
+
+      // If a specific child category filter is active and matches this job, do not let an obsolete Level 2 mismatch exclude it
+      if (selectedCategories && selectedCategories.length > 0 && matchesChildCategory) {
+        matchesCategoryHierarchy = true;
       }
 
       // 3. Department filter dropdown
