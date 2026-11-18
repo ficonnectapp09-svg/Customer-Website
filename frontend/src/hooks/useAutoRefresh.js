@@ -15,6 +15,7 @@ import { useEffect, useRef } from 'react';
 export function useAutoRefresh(callback, intervalMs = 5000, dependencies = []) {
   const savedCallback = useRef(callback);
   const inFlightRef = useRef(false);
+  const lastRunRef = useRef(0);
 
   // Keep latest callback reference
   useEffect(() => {
@@ -25,11 +26,14 @@ export function useAutoRefresh(callback, intervalMs = 5000, dependencies = []) {
     let timerId = null;
     let wakeTimeout = null;
     let isMounted = true;
+    const focusCooldownMs = Math.min(Math.max(intervalMs, 15000), 30000);
 
-    const executeCallback = async () => {
+    const executeCallback = async (respectCooldown = false) => {
       if (!isMounted || inFlightRef.current) return;
       if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+      if (respectCooldown && (Date.now() - lastRunRef.current) < focusCooldownMs) return;
       inFlightRef.current = true;
+      lastRunRef.current = Date.now();
       try {
         await savedCallback.current();
       } catch (err) {
@@ -53,69 +57,47 @@ export function useAutoRefresh(callback, intervalMs = 5000, dependencies = []) {
       if (timerId) clearInterval(timerId);
       timerId = setInterval(() => {
         if (typeof document !== 'undefined' && !document.hidden && typeof navigator !== 'undefined' && navigator.onLine) {
-          executeCallback();
+          executeCallback(false);
         }
       }, intervalMs);
     };
 
     // Execute immediately on mount/dependency change if tab is active and online
     if (typeof document !== 'undefined' && !document.hidden && typeof navigator !== 'undefined' && navigator.onLine) {
-      executeCallback();
+      executeCallback(false);
     }
 
     startTimer();
 
-    // Tab visibility & Window focus listeners
-    const handleVisibilityChange = () => {
+    // Unified Tab visibility, Window focus & Online listeners with cooldown
+    const scheduleWakeRefresh = () => {
       if (wakeTimeout) clearTimeout(wakeTimeout);
       if (typeof document !== 'undefined' && !document.hidden) {
-        // Allow 300ms for network adapter to fully awaken from system sleep/standby
         wakeTimeout = setTimeout(() => {
           if (isMounted && typeof navigator !== 'undefined' && navigator.onLine) {
-            executeCallback();
+            executeCallback(true);
             startTimer();
           }
         }, 300);
       } else {
-        // Pause timer when tab is inactive
         if (timerId) clearInterval(timerId);
       }
     };
 
-    const handleFocus = () => {
-      if (wakeTimeout) clearTimeout(wakeTimeout);
-      if (typeof document !== 'undefined' && !document.hidden) {
-        wakeTimeout = setTimeout(() => {
-          if (isMounted && typeof navigator !== 'undefined' && navigator.onLine) {
-            executeCallback();
-            startTimer();
-          }
-        }, 300);
-      }
-    };
-
-    const handleOnline = () => {
-      if (wakeTimeout) clearTimeout(wakeTimeout);
-      wakeTimeout = setTimeout(() => {
-        if (isMounted && typeof document !== 'undefined' && !document.hidden) {
-          executeCallback();
-          startTimer();
-        }
-      }, 300);
-    };
-
     if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-      window.addEventListener('focus', handleFocus);
-      window.addEventListener('online', handleOnline);
+      document.addEventListener('visibilitychange', scheduleWakeRefresh);
+      window.addEventListener('focus', scheduleWakeRefresh);
+      window.addEventListener('online', scheduleWakeRefresh);
     }
 
     return () => {
       isMounted = false;
       if (timerId) clearInterval(timerId);
+      if (wakeTimeout) clearTimeout(wakeTimeout);
       if (typeof document !== 'undefined') {
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-        window.removeEventListener('focus', handleFocus);
+        document.removeEventListener('visibilitychange', scheduleWakeRefresh);
+        window.removeEventListener('focus', scheduleWakeRefresh);
+        window.removeEventListener('online', scheduleWakeRefresh);
       }
     };
   }, [intervalMs, ...dependencies]);

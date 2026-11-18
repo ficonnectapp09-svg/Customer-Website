@@ -1368,8 +1368,8 @@ export default function CustomerDashboard({
     }
   }, []);
 
-  // Poll vendor products every 15 seconds with tab visibility tracking
-  useAutoRefresh(loadVendorProducts, 15000);
+  // Poll vendor products every 60 seconds with tab visibility tracking (socket updates remain instant)
+  useAutoRefresh(loadVendorProducts, 60000);
 
   const OFFERS_CACHE_KEY = 'fic_customer_exclusive_offers_v2';
   const getCachedOffers = () => {
@@ -1419,7 +1419,7 @@ export default function CustomerDashboard({
         clearTimeout(timeoutId);
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
+          if (Array.isArray(data)) {
             setAdminOffers(data);
             try {
               if (typeof window !== 'undefined') {
@@ -1450,7 +1450,7 @@ export default function CustomerDashboard({
         const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
+          if (Array.isArray(data)) {
             setAdminAds(data);
             break;
           }
@@ -1461,8 +1461,8 @@ export default function CustomerDashboard({
     }
   }, []);
 
-  // Poll admin promotions every 15 seconds with tab visibility tracking
-  useAutoRefresh(fetchAdminPromotions, 15000);
+  // Poll admin promotions every 3 minutes (socket 'offers:updated' refreshes immediately)
+  useAutoRefresh(fetchAdminPromotions, 180000);
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -3017,16 +3017,12 @@ export default function CustomerDashboard({
     }
   }, []);
 
-  // Dynamic categories real-time synchronization
-  useAutoRefresh(fetchDbCategories, 30000);
-  // Background banners revalidation every 60s (avoiding network flooding)
-  useAutoRefresh(fetchDbBanners, 60000);
+  // Dynamic categories & banners periodic reconciliation (socket events update instantaneously)
+  useAutoRefresh(fetchDbCategories, 300000);
+  useAutoRefresh(fetchDbBanners, 300000);
 
   useEffect(() => {
-    fetchDbCategories();
-    fetchDbBanners();
-    fetchAdminPromotions();
-
+    // Initial fetches are triggered immediately by useAutoRefresh hooks above; subscribe to live socket invalidations here
     const onCategoriesUpdated = () => fetchDbCategories();
     const onBannersUpdated = () => {
       try { localStorage.removeItem(BANNER_CACHE_KEY); } catch (e) {}
@@ -3170,16 +3166,14 @@ export default function CustomerDashboard({
     }
   }, [profileName, profileEmail, profilePhone, currentUser?.id, currentUser?.customerId, currentUser?.email, currentUser?.phone, activeCustomerId]);
 
-  // Background refresh on tab focus/visibility with debounced revalidation
+  // Background refresh on tab focus/visibility with 20s cooldown (banners/promos handled by useAutoRefresh)
   useEffect(() => {
-    let lastFocusRevalidate = 0;
+    let lastFocusRevalidate = Date.now();
     const handleVisibility = () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
         const now = Date.now();
-        if (now - lastFocusRevalidate > 4000) {
+        if (now - lastFocusRevalidate > 20000) {
           lastFocusRevalidate = now;
-          fetchDbBanners();
-          if (typeof fetchAdminPromotions === 'function') fetchAdminPromotions();
           if (typeof loadCustomerOrders === 'function') loadCustomerOrders(true);
         }
       }
@@ -3192,7 +3186,7 @@ export default function CustomerDashboard({
         window.removeEventListener('focus', handleVisibility);
       };
     }
-  }, [fetchDbBanners, fetchAdminPromotions, loadCustomerOrders]);
+  }, [loadCustomerOrders]);
 
   const refreshTrackingDetails = async (orderId) => {
     try {
