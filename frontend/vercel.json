@@ -2,15 +2,15 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://connect-app-ukpk.onrender.com/api/:path*"
+      "destination": "https://customer-website-2x11.onrender.com/api/:path*"
     },
     {
       "source": "/uploads/:path*",
-      "destination": "https://connect-app-ukpk.onrender.com/uploads/:path*"
+      "destination": "https://customer-website-2x11.onrender.com/uploads/:path*"
     },
     {
       "source": "/socket.io/:path*",
-      "destination": "https://connect-app-ukpk.onrender.com/socket.io/:path*"
+      "destination": "https://customer-website-2x11.onrender.com/socket.io/:path*"
     },
     {
       "source": "/((?!assets/|.*\\.[a-zA-Z0-9]+$).*)",

@@ -1,4 +1,4 @@
-import { uploadToS3 } from '../s3';
+import { uploadToCloudinary } from '../cloudinary';
 import { Router, Request, Response } from 'express';
 import { db, Order, DeliveryPartner, DeliveryAssignment } from '../db';
 import { socketManager } from '../socket';
@@ -688,27 +688,27 @@ router.post('/', optionalAuthenticateToken, async (req: AuthenticatedRequest, re
     paymentMethod, payment_method, paymentStatus, payment_status, transactionId, paidAt, paymentId
   } = req.body;
 
-  // Upload candidate resume to AWS S3 if provided as base64 data URI
+  // Upload candidate resume to Cloudinary if provided as base64 data URI
   if (candidateResume && typeof candidateResume === 'string' && candidateResume.startsWith('data:')) {
     try {
-      const s3Res = await uploadToS3(candidateResume, 'resumes', 'candidate_resume.pdf');
-      if (s3Res && s3Res.success && s3Res.url) {
-        candidateResume = s3Res.url;
+      const cldRes = await uploadToCloudinary(candidateResume, 'resumes', 'candidate_resume.pdf');
+      if (cldRes && cldRes.success && cldRes.url) {
+        candidateResume = cldRes.url;
       }
     } catch (uploadErr: any) {
-      console.error('[Candidate Resume S3 Upload Warning]:', uploadErr?.message);
+      console.error('[Candidate Resume Cloudinary Upload Warning]:', uploadErr?.message);
     }
   }
 
-  // Upload prescription document to AWS S3 if provided as base64 data URI
+  // Upload prescription document to Cloudinary if provided as base64 data URI
   if (prescriptionUrl && typeof prescriptionUrl === 'string' && prescriptionUrl.startsWith('data:')) {
     try {
-      const s3Res = await uploadToS3(prescriptionUrl, 'prescriptions', 'prescription.jpg');
-      if (s3Res && s3Res.success && s3Res.url) {
-        prescriptionUrl = s3Res.url;
+      const cldRes = await uploadToCloudinary(prescriptionUrl, 'prescriptions', 'prescription.jpg');
+      if (cldRes && cldRes.success && cldRes.url) {
+        prescriptionUrl = cldRes.url;
       }
     } catch (uploadErr: any) {
-      console.error('[Prescription S3 Upload Warning]:', uploadErr?.message);
+      console.error('[Prescription Cloudinary Upload Warning]:', uploadErr?.message);
     }
   }
 

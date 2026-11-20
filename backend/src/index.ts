@@ -22,7 +22,7 @@ import {
   uploadRateLimiter,
   isAllowedOrigin
 } from './security/middleware';
-import { uploadToS3, getPresignedViewUrl, isPersistentImageUrl, resolveDurableImageUrl, getDurableImageUrl, extractS3Key, getObjectStream } from './s3';
+import { uploadToCloudinary, getPresignedViewUrl, isPersistentImageUrl, resolveDurableImageUrl, getDurableImageUrl, extractS3Key, getObjectStream } from './cloudinary';
 import { securityManager } from './security/securityManager';
 import { ObjectId } from 'mongodb';
 import {
@@ -412,6 +412,7 @@ app.get(['/api/public/products', '/api/products'], async (req, res) => {
         return true;
       });
 
+      const configuredBackendHost = (process.env.BACKEND_URL || '').replace(/^https?:\/\//, '').split('/')[0].toLowerCase();
       const isDeadUrl = (url: any) => {
         if (!url || typeof url !== 'string') return true;
         const lower = url.trim().toLowerCase();
@@ -423,7 +424,7 @@ app.get(['/api/public/products', '/api/products'], async (req, res) => {
           lower.includes('api.ficapp.in') ||
           lower.includes('vendor.ficapp.in') ||
           lower.includes('/uploads/img_') ||
-          (lower.includes('.onrender.com') && !lower.includes('connect-app-ukpk.onrender.com'))
+          (lower.includes('.onrender.com') && (!configuredBackendHost || !lower.includes(configuredBackendHost)))
         );
       };
 
@@ -432,7 +433,7 @@ app.get(['/api/public/products', '/api/products'], async (req, res) => {
         let u = rawUrl.trim();
         if (isDeadUrl(u)) return '';
         if (u.includes('localhost:8002/uploads/') || u.includes('127.0.0.1:8002/uploads/')) {
-          u = u.replace(/https?:\/\/(localhost|127\.0\.0\.1):8002\/uploads\//i, `${process.env.BACKEND_URL || 'https://connect-app-ukpk.onrender.com'}/uploads/`);
+          u = u.replace(/https?:\/\/(localhost|127\.0\.0\.1):8002\/uploads\//i, `${process.env.BACKEND_URL || 'https://customer-website-2x11.onrender.com'}/uploads/`);
         }
         // Normalize S3 objects to permanent durable URLs & preserve Cloudinary permanent CDN URLs
         return resolveDurableImageUrl(u);
@@ -509,7 +510,7 @@ app.post(['/api/upload', '/api/products/upload-image', '/api/admin/upload'], upl
       return res.status(400).json({ success: false, error: 'No image data provided' });
     }
 
-    const uploadRes = await uploadToS3(rawImage, folder || 'products');
+    const uploadRes = await uploadToCloudinary(rawImage, folder || 'products');
     if (!uploadRes.success || !uploadRes.secure_url) {
       return res.status(500).json({ success: false, error: uploadRes.error || 'Failed to upload image' });
     }
@@ -653,7 +654,7 @@ app.post(['/api/products', '/api/public/products', '/api/admin/products'], async
     // Process primary image if base64 data URI
     let primaryImageUrl = payload.imageUrl || payload.image || '';
     if (primaryImageUrl && typeof primaryImageUrl === 'string' && primaryImageUrl.startsWith('data:image/')) {
-      const uploadRes = await uploadToS3(primaryImageUrl, 'products');
+      const uploadRes = await uploadToCloudinary(primaryImageUrl, 'products');
       if (uploadRes.success && uploadRes.secure_url) {
         primaryImageUrl = uploadRes.secure_url;
       }
@@ -665,7 +666,7 @@ app.post(['/api/products', '/api/public/products', '/api/admin/products'], async
       for (const imgItem of payload.images) {
         const rawUrl = typeof imgItem === 'string' ? imgItem : (imgItem?.url || '');
         if (rawUrl && rawUrl.startsWith('data:image/')) {
-          const uploadRes = await uploadToS3(rawUrl, 'products');
+          const uploadRes = await uploadToCloudinary(rawUrl, 'products');
           if (uploadRes.success && uploadRes.secure_url) {
             processedImages.push({ url: uploadRes.secure_url, publicId: uploadRes.publicId });
           }
@@ -764,7 +765,7 @@ const handleUpdateProduct = async (req: any, res: any) => {
 
     // If new image is base64, upload to Cloudinary
     if (updatedImageUrl && typeof updatedImageUrl === 'string' && updatedImageUrl.startsWith('data:image/')) {
-      const uploadRes = await uploadToS3(updatedImageUrl, 'products');
+      const uploadRes = await uploadToCloudinary(updatedImageUrl, 'products');
       if (uploadRes.success && uploadRes.secure_url) {
         updatedImageUrl = uploadRes.secure_url;
       }
@@ -776,7 +777,7 @@ const handleUpdateProduct = async (req: any, res: any) => {
       for (const imgItem of updatedImages) {
         const rawUrl = typeof imgItem === 'string' ? imgItem : (imgItem?.url || '');
         if (rawUrl && rawUrl.startsWith('data:image/')) {
-          const uploadRes = await uploadToS3(rawUrl, 'products');
+          const uploadRes = await uploadToCloudinary(rawUrl, 'products');
           if (uploadRes.success && uploadRes.secure_url) {
             processed.push({ url: uploadRes.secure_url, publicId: uploadRes.publicId });
           }

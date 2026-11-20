@@ -150,6 +150,8 @@ const inferSubNavbarCategory = (p) => {
 const isDeadImageUrl = (u) => {
   if (!u || typeof u !== 'string') return true;
   const lower = u.trim().toLowerCase();
+  const configuredBackend = typeof getBackendUrl === 'function' ? getBackendUrl() : '';
+  const backendHost = configuredBackend ? configuredBackend.replace(/^https?:\/\//, '').split('/')[0].toLowerCase() : '';
   return (
     !lower ||
     lower === 'null' ||
@@ -157,8 +159,8 @@ const isDeadImageUrl = (u) => {
     lower.includes('connect-vendor') ||
     lower.includes('api.ficapp.in') ||
     lower.includes('vendor.ficapp.in') ||
-    lower.includes('uploads/img_') ||
-    (lower.includes('.onrender.com') && !lower.includes('connect-app-ukpk.onrender.com'))
+    lower.includes('/uploads/img_') ||
+    (lower.includes('.onrender.com') && (!backendHost || !lower.includes(backendHost)))
   );
 };
 
@@ -310,6 +312,9 @@ export const sanitizeImageUrl = (imgUrl, pContext = null) => {
     return getCategoryFallbackImage(pContext);
   }
 
+  const configuredBackend = typeof getBackendUrl === 'function' ? getBackendUrl() : '';
+  const backendHost = configuredBackend ? configuredBackend.replace(/^https?:\/\//, '').split('/')[0].toLowerCase() : '';
+
   // Prevent loading assets from dead domains or ephemeral upload instances
   if (
     url.includes('api.ficapp.in') ||
@@ -317,7 +322,7 @@ export const sanitizeImageUrl = (imgUrl, pContext = null) => {
     url.includes('/uploads/img_') ||
     url.includes('uploads/img_') ||
     url.includes('connect-vendor') ||
-    (url.includes('.onrender.com') && !url.includes('connect-app-ukpk.onrender.com'))
+    (url.includes('.onrender.com') && (!backendHost || !url.toLowerCase().includes(backendHost)))
   ) {
     return getCategoryFallbackImage(pContext);
   }
@@ -361,8 +366,8 @@ export const sanitizeImageUrl = (imgUrl, pContext = null) => {
   }
 
   // Permanent Cloudinary CDN URLs - fully preserved
-  if (url.startsWith('https://res.cloudinary.com/')) {
-    return url;
+  if (url.startsWith('https://res.cloudinary.com/') || url.startsWith('http://res.cloudinary.com/')) {
+    return url.replace(/^http:\/\//, 'https://');
   }
 
   // CloudFront & S3 URLs

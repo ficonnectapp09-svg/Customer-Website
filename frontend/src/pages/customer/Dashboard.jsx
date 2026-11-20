@@ -11528,6 +11528,8 @@ export default function CustomerDashboard({
     else if (typeof img === 'object') {
       val = (img.url || img.src || img.image || img.uri || '').trim();
     }
+    const activeBackend = typeof getBackendUrl === 'function' ? getBackendUrl() : '';
+    const activeBackendHost = activeBackend ? activeBackend.replace(/^https?:\/\//, '').split('/')[0].toLowerCase() : '';
     if (
       !val ||
       val.includes('api.ficapp.in') ||
@@ -11535,7 +11537,7 @@ export default function CustomerDashboard({
       val.includes('/uploads/img_') ||
       val.includes('uploads/img_') ||
       val.includes('connect-vendor') ||
-      (val.includes('.onrender.com') && !val.includes('connect-app-ukpk.onrender.com'))
+      (val.includes('.onrender.com') && (!activeBackendHost || !val.toLowerCase().includes(activeBackendHost)))
     ) {
       return '';
     }

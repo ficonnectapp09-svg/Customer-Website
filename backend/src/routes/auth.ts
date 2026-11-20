@@ -1,4 +1,4 @@
-import { uploadToS3 } from '../s3';
+import { uploadToCloudinary } from '../cloudinary';
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { ObjectId } from 'mongodb';
@@ -1810,12 +1810,12 @@ router.put('/customer-profile', authenticateToken, async (req: AuthenticatedRequ
     if (newAvatar !== undefined) {
       if (typeof newAvatar === 'string' && newAvatar.startsWith('data:')) {
         try {
-          const s3Res = await uploadToS3(newAvatar, 'customers', 'avatar.jpg');
-          if (s3Res && s3Res.success && s3Res.url) {
-            newAvatar = s3Res.url;
+          const cldRes = await uploadToCloudinary(newAvatar, 'customers', 'avatar.jpg');
+          if (cldRes && cldRes.success && cldRes.url) {
+            newAvatar = cldRes.url;
           }
         } catch (uploadErr: any) {
-          console.error('[Customer Avatar S3 Upload Warning]:', uploadErr?.message);
+          console.error('[Customer Avatar Cloudinary Upload Warning]:', uploadErr?.message);
         }
       }
       updateFields.avatar = newAvatar;
