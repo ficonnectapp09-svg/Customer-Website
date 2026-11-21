@@ -13,11 +13,11 @@ jobs:
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.2.2
         with:
-          host: 3.110.88.42
+          host: ${{ secrets.EC2_HOST || secrets.DEPLOY_HOST }}
           username: ${{ secrets.EC2_USER || 'ubuntu' }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd /var/www/Connect-App-/backend || cd /home/ubuntu/Connect-App-/backend
+            cd ${{ secrets.DEPLOY_PATH || '/var/www/Connect-App-/backend' }} || cd /home/ubuntu/Connect-App-/backend
             git pull origin main
             npm install
             npm run build

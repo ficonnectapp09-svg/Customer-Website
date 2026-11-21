@@ -53,9 +53,12 @@ export const getVendorBackendUrl = () => {
 
 export const getAdminBackendUrl = () => {
   if (import.meta.env.VITE_ADMIN_BACKEND_URL && typeof import.meta.env.VITE_ADMIN_BACKEND_URL === 'string') {
-    return formatUrl(import.meta.env.VITE_ADMIN_BACKEND_URL);
+    const customAdmin = formatUrl(import.meta.env.VITE_ADMIN_BACKEND_URL);
+    if (customAdmin && !customAdmin.includes('admin-09w3.onrender.com')) {
+      return customAdmin;
+    }
   }
-  return 'https://admin-09w3.onrender.com';
+  return getBackendUrl();
 };
 
 export const getSocketUrl = () => {

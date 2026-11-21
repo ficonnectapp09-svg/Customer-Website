@@ -1404,9 +1404,6 @@ export default function CustomerDashboard({
     // Fast-path candidate endpoints prioritized by verified speed
     const offerEndpoints = [
       adminBase ? `${adminBase}/api/admin/public/exclusive-offers` : '',
-      adminBase ? `${adminBase}/admin-api/public/exclusive-offers` : '',
-      'https://admin-09w3.onrender.com/api/admin/public/exclusive-offers',
-      'https://admin-09w3.onrender.com/admin-api/public/exclusive-offers',
       mainBackend ? `${mainBackend}/api/admin/public/exclusive-offers` : '',
       '/api/admin/public/exclusive-offers'
     ].filter(Boolean);
@@ -1440,9 +1437,8 @@ export default function CustomerDashboard({
     // Non-blocking background fetch for ads in case required
     const adEndpoints = [
       adminBase ? `${adminBase}/api/admin/public/ads` : '',
-      adminBase ? `${adminBase}/admin-api/public/ads` : '',
-      'https://admin-09w3.onrender.com/api/admin/public/ads',
-      'https://admin-09w3.onrender.com/admin-api/public/ads'
+      mainBackend ? `${mainBackend}/api/admin/public/ads` : '',
+      '/api/admin/public/ads'
     ].filter(Boolean);
 
     for (const url of [...new Set(adEndpoints)]) {

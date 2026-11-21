@@ -1,5 +1,5 @@
 import { getBackendUrl, getVendorBackendUrl } from './apiSetup';
-const BACKEND_URL = `${getBackendUrl()}/api`;
+const getApiBaseUrl = () => `${getBackendUrl()}/api`;
 
 
 // Haversine distance formula
@@ -476,7 +476,9 @@ export const apiFetch = async (endpoint, options = {}) => {
 
   const token = localStorage.getItem('connect_token') || localStorage.getItem('token') || localStorage.getItem('vendor_token') || localStorage.getItem('admin_token');
 
-  // Strip duplicate '/api' prefix so `${BACKEND_URL}${normalizedEndpoint}` never produces '/api/api/...'
+  const apiBaseUrl = getApiBaseUrl();
+
+  // Strip duplicate '/api' prefix so `${apiBaseUrl}${normalizedEndpoint}` never produces '/api/api/...'
   const epStr = typeof endpoint === 'string' ? endpoint.trim() : '';
   const normalizedEndpoint = epStr.startsWith('/api/')
     ? epStr.slice(4)
@@ -485,7 +487,7 @@ export const apiFetch = async (endpoint, options = {}) => {
   try {
     const authHeader = token ? { 'Authorization': `Bearer ${token}` } : {};
 
-    const res = await fetch(`${BACKEND_URL}${normalizedEndpoint}`, {
+    const res = await fetch(`${apiBaseUrl}${normalizedEndpoint}`, {
       headers: {
         'Content-Type': 'application/json',
         ...authHeader,

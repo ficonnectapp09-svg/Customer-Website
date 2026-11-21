@@ -62,17 +62,13 @@ const cspDirectives = {
   // Styles: self + Google Fonts
   styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
 
-  // Images: self + Cloudinary CDN (product/vendor images) + AWS S3 + CloudFront + map tiles + Unsplash (placeholder images)
+  // Images: self + Cloudinary CDN (product/vendor images) + map tiles + Unsplash (placeholder images)
   imgSrc: [
     "'self'",
     'data:',
     'blob:',
     'https://res.cloudinary.com',
     'https://*.cloudinary.com',
-    'https://*.amazonaws.com',
-    'https://*.s3.amazonaws.com',
-    'https://*.s3.ap-south-1.amazonaws.com',
-    'https://*.cloudfront.net',
     'https://images.unsplash.com',
     'https://*.openstreetmap.org',
     'https://tile.openstreetmap.org',
@@ -84,9 +80,9 @@ const cspDirectives = {
   // Connect (XHR/fetch/WebSocket): self + all known Connect App API/WS endpoints + Cloudinary upload API + Razorpay
   connectSrc: [
     "'self'",
-    // Production API and frontend domains
-    'https://api.ficapp.in',
-    'wss://api.ficapp.in',
+    // Production API and frontend domains dynamically configured via environment variables
+    ...(process.env.BACKEND_URL ? [process.env.BACKEND_URL, process.env.BACKEND_URL.replace(/^http/, 'ws')] : []),
+    ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map((s: string) => s.trim()) : []),
     'https://ficapp.in',
     'https://www.ficapp.in',
     'https://*.ficapp.in',
